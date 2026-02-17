@@ -1,0 +1,201 @@
+  body {
+    position: relative;
+    padding-top: 0;
+  }
+
+  .section-title {
+    margin-top: 30px;
+    margin-bottom: 15px;
+  }
+  .person-icon {
+    font-size: 24px;
+    color: #007bff;
+    margin: 2px;
+  }
+  section {
+    padding: 60px 0;
+    border-bottom: 1px solid;
+  }
+  
+  .score-input {
+    width: 30px;
+    height: 30px;
+    font-size: 14px;
+  }
+
+  h2 {
+    text-align: center;
+  }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    overflow: auto;
+    font-family: sans-serif;
+  }
+    /* 单一 Golden Layout 容器 */
+    #layoutContainer {
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+    }
+    /* 保证 Golden Layout 内部面板允许滚动 */
+    .lm_item,
+    .lm_content {
+      overflow: auto !important;
+      background-color: #ffffff;
+    }
+
+  .trade-rules-section, 
+  .slider-section,
+  .extra-section,
+  .select-row,
+  .units-row,
+  .deParam-row,
+  .agentParam-row {
+    padding-left: 5%;
+  }
+
+  .slider-row {
+    display: grid;                /* 或者改为 display: flex; */
+    grid-template-columns: 70px 50px auto; 
+    /* 3 列：前两列固定宽度（给 label 和 input），最后一列自动（给 slider） */
+    align-items: center;          /* 垂直居中对齐 */
+    column-gap: 10px;             /* 列之间的水平间距 */
+    margin-bottom: 8px;           /* 每行之间的下边距 */
+  }
+  
+  .slider-row label {
+    text-align: right;            /* 让标签文字右对齐（可选） */
+  }
+  
+  .slider-row input[type="number"] {
+    width: 30px;                  /* 根据需要调整输入框宽度 */
+    /* 你也可以在此处设置 height、font-size 等 */
+  }
+
+
+  
+  .control-row {
+    display: grid;
+    grid-template-columns: 150px 60px auto; /* 根据实际情况调整宽度 */
+    align-items: center;
+    column-gap: 10px;
+    margin-bottom: 8px;
+  }
+  
+  .control-row label {
+    text-align: right;
+  }
+
+  
+  .control-row input[type="number"] {
+    width: 40px;                  /* 根据需要调整输入框宽度 */
+    /* 你也可以在此处设置 height、font-size 等 */
+  }
+  .trade-rules-section table {
+    border-collapse: collapse; /* 合并边框 */
+    width: 80%;
+  }
+  
+  .trade-rules-section td,
+  .trade-rules-section th {
+    border: 1px solid #666;
+    padding: 4px;
+    text-align: center;
+  }
+  
+  .percent-input {
+    position: relative;
+    display: inline-block;
+  }
+  
+  .percent-input input[type="number"] {
+    width: 40px;       /* 根据需要调整宽度 */
+    padding-right: 20px; /* 为百分号留出空间 */
+  }
+  
+  .percent-input::after {
+    content: "%";
+    position: absolute;
+    right: 5px; 
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none; /* 不影响点击 */
+  }
+  
+  .strategy-group {
+    display: flex;
+    justify-content: center; /* 居中排列两项 */
+    align-items: center;
+    gap: 20px;             /* 两项之间的间隔，可根据需要调整 */
+  }
+  
+  .select-group {
+    display: flex;
+    flex-direction: column; /* 垂直排列：上方为 label，下方为下拉菜单 */
+    align-items: center;    /* 居中对齐 */
+  }
+  
+  /* 去除原来的 padding-left 设置 */
+  .evaluation-group {
+    display: flex;
+    justify-content: center;  /* 水平居中 */
+    align-items: center;
+    gap: 20px;                /* 根据需要调整各单元之间的间距 */
+    /* 如果需要上下间距，也可添加 margin */
+  }
+
+  .param-unit {
+    display: flex;
+    flex-direction: column;  /* 上下排列 */
+    align-items: center;     /* 居中对齐 */
+  }
+  .param-unit input[type="number"] {
+    width: 50px;                  /* 根据需要调整输入框宽度 */
+    /* 你也可以在此处设置 height、font-size 等 */
+  }
+
+  .deParam-row {
+    display: grid;
+    grid-template-columns: 150px 60px auto; /* 150px给标签, 60px给输入框, 剩余部分给滑块 */
+    align-items: center;   /* 垂直居中 */
+    gap: 10px;             /* 列间隙 */
+    margin-bottom: 8px;    /* 行间距 */
+  }
+  
+  .deParam-row label {
+    text-align: right;
+  }
+  
+  .deParam-row input[type="number"] {
+    width: 40px;           /* 根据需要调整宽度 */
+  }
+
+
+  .agentParam-row {
+    display: grid;
+    grid-template-columns: 150px 60px auto; /* 150px给标签，60px给数字输入框，剩余区域给滑块 */
+    align-items: center;    /* 垂直居中 */
+    column-gap: 10px;       /* 列之间间隔 */
+    margin-bottom: 8px;     /* 每行下方留出间距 */
+  }
+  
+  /* 如果你希望标签右对齐 */
+  .agentParam-row label {
+    text-align: right;
+  }
+  
+  /* 可以针对数字输入框做进一步调整 */
+  .agentParam-row input[type="number"] {
+    width: 60px;           /* 根据需要调整宽度 */
+  }
+  
+  /* 滚动平滑效果 */
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  
+
+  

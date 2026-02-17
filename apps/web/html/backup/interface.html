@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Combined Page</title>
+
+  <!-- ============ 1. 统一引入公共库/样式 ============ -->
+  <!-- jQuery & jQuery UI (只保留一份) -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/smoothness/jquery-ui.css">
+  <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+
+  <!-- NexusUI (all.html 需要) -->
+  <script src="https://cdn.jsdelivr.net/npm/nexusui@latest/dist/NexusUI.js"></script>
+
+  <!-- Bootstrap & FontAwesome (index.html 需要) -->
+  <!-- 如果本地文件路径无法使用，可改用CDN -->
+  <link rel="stylesheet" href="../css/bootstrap.min.css">
+  <link rel="stylesheet" href="../css/fontawesome.min.css">
+  <link rel="stylesheet" href="../css/style.css">
+
+  <!-- Plotly (index.html 需要) -->
+  <script src="../js/plotly-latest.min.js"></script>
+
+  <!-- MathJax（index.html 需要，如果不需要可注释掉） -->
+  <script src="../js/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+
+  <!-- ============ 2. 合并样式 ============ -->
+  <style>
+    /* （all.html）中的基本样式 */
+    body {
+      margin: 0;
+      padding: 0;
+      background: #eee;
+      font-family: sans-serif;
+      /* all.html 中有 overflow: hidden；但为了让后续内容可滚动，这里注释掉或去掉 */
+      /* overflow: hidden; */
+    }
+    /* （index.html）中给body的一些额外特性，可自行按需增/改 */
+    /* position: relative; padding-top: 70px; scroll-behavior: smooth; 等可根据需要加回 */
+    body {
+      position: relative;
+      padding-top: 70px;  /* 使页面上方留出空间 */
+      scroll-behavior: smooth;
+    }
+
+    /* 通用可拖拽容器（all.html） */
+    .draggable-box {
+      position: absolute;
+      border: 2px solid #333;
+      background: #fff;
+      padding: 10px;
+      box-sizing: border-box;
+      overflow: auto;
+    }
+    /* index.html 中也对 .draggable-box 做了样式，差异在于其 position: relative + 宽高等。
+       如果想保留 index.html 对 .draggable-box 的写法，可将其局部改名或按需合并。
+       这里示例是把 index.html 的一些 .draggable-box 宽高样式，直接在具体 DOM 上用内联写法，
+       或者改成其它class避免冲突，具体可按需要微调。 */
+
+    /* all.html 中部分标题样式 */
+    .draggable-box h2 {
+      text-align: center;
+      font-size: 1.2em;
+      margin: 5px 0 10px;
+    }
+    .draggable-box h3 {
+      text-align: left;
+      font-size: 1em;
+      margin: 5px 0 10px;
+    }
+
+    /* all.html 通用行布局 */
+    .flex-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .flex-row label {
+      font-size: 0.9em;
+      margin-right: 5px;
+    }
+    .flex-row input[type="number"] {
+      padding: 3px;
+      text-align: center;
+      margin-right: 5px;
+      font-size: 0.9em;
+    }
+    .param-desc {
+      font-size: 0.8em;
+      color: #555;
+    }
+    .trade-rules-section {
+      margin: 2px auto;
+    }
+    .trade-rules-section table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8em;
+    }
+    .trade-rules-section table,
+    .trade-rules-section th,
+    .trade-rules-section td {
+      border: 1px solid #666;
+    }
+    .trade-rules-section th,
+    .trade-rules-section td {
+      padding: 2px;
+      text-align: center;
+    }
+    .icon {
+      font-size: 1em;
+      margin: 0 2px;
+    }
+    .cheat {
+      color: red;
+    }
+    .cooperate {
+      color: green;
+    }
+    .score-input {
+      width: 30px;
+      font-size: 0.8em;
+      margin: 0 2px;
+      text-align: center;
+    }
+    .extra-section {
+      text-align: left;
+      margin: 5px auto;
+    }
+
+    /* all.html 中各 draggable-box 的具体定位及大小 */
+    #designerEvaluatorDiv {
+      top: 0;
+      left: 35vw;
+      width: 35vw;
+      height: 50vh;
+    }
+    #agentTrainingDiv {
+      top: 0;
+      right: 0;
+      width: 35vw;
+      height: 70vh;
+    }
+    #selectDiv {
+      bottom: 0;
+      left: 0;
+      width: 35vw;
+      height: 18vh;
+    }
+    #paramUnits {
+      bottom: 0;
+      right: 0;
+      width: 35vw;
+      height: 35vh;
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    #paramUnits .units-row {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-around;
+      align-items: center;
+      flex: 1;
+    }
+    .param-unit {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 5px;
+    }
+    .param-unit .dial,
+    .param-unit .toggle {
+      margin-bottom: 5px;
+    }
+    .param-unit input[type="number"] {
+      width: 60px;
+      margin-bottom: 5px;
+      text-align: center;
+    }
+    .param-name {
+      font-size: 0.9em;
+      font-weight: bold;
+    }
+    #classicRule {
+      top: 0;
+      left: 0;
+      width: 35vw;
+      height: 80vh;
+    }
+
+    /* （index.html）中的一些样式 */
+    .section-title {
+      text-align: center;
+      margin-top: 30px;
+      margin-bottom: 15px;
+    }
+    .person-icon {
+      font-size: 24px;
+      color: #007bff;
+      margin: 2px;
+    }
+    section {
+      padding: 60px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .trade-rule-table td,
+    .trade-rule-table th {
+      pointer-events: none;
+    }
+
+    /* 以下几个“可拖拽区域”在 index.html 是写死的 width/height + margin，
+       这里为了演示，给它们一个相对定位的 style 并保留 outer overflow。
+       若想和 all.html 一样绝对定位，可相应修改。
+    */
+    #ruleVisualizationDiv,
+    #strategyVisualizationDiv,
+    #evaluationVisualizationDiv {
+      /* index.html 中默认是 .draggable-box + margin:10px auto; 这里保留即可 */
+      width: 60vw;
+      height: 90vh;
+      border: 2px solid #333;
+      background: #fff;
+      padding: 10px;
+      box-sizing: border-box;
+      overflow: auto;
+      margin: 10px auto;
+      position: relative; /* 如果需要可改成 absolute */
+    }
+  </style>
+</head>
+
+<body data-spy="scroll" data-target="#navbarNav" data-offset="70">
+
+  <!-- ======================================== -->
+  <!-- =========== 1. 原 all.html 部分 ========== -->
+  <!-- ======================================== -->
+
+  <!-- Rule setting Section -->
+  <div id="classicRule" class="draggable-box">
+    <h2>Rule setting</h2>
+    <div class="slider-section">
+      <h3>Initial population</h3>
+      <div id="sliderContainer"></div>
+    </div>
+    <div class="trade-rules-section">
+      <h3>Trade Rules</h3>
+      <table>
+        <tbody>
+          <tr>
+            <td>
+              <span class="icon cheat">&#x2694;</span>
+              <span class="icon cheat">&#x2694;</span>
+            </td>
+            <td>
+              <span class="icon cheat">&#x2694;</span>
+              <span class="icon cooperate">&#x1F91D;</span>
+            </td>
+            <td>
+              <span class="icon cooperate">&#x1F91D;</span>
+              <span class="icon cooperate">&#x1F91D;</span>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <input type="number" class="score-input" value="0">
+              <input type="number" class="score-input" value="0">
+            </td>
+            <td>
+              <input type="number" class="score-input" value="3">
+              <input type="number" class="score-input" value="-1">
+            </td>
+            <td>
+              <input type="number" class="score-input" value="2">
+              <input type="number" class="score-input" value="2">
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="extra-section">
+      <h3>Additional Controls</h3>
+      <div class="control-row" id="roundNumberControl">
+        <label>Round Number:</label>
+        <input type="number" id="roundNumberInput" value="50" min="1" max="100">
+        <div id="roundNumberSlider"></div>
+      </div>
+      <div class="control-row" id="reproductionNumberControl">
+        <label>Reproduction Number:</label>
+        <input type="number" id="reproductionNumberInput" value="5" min="0" max="25">
+        <div id="reproductionNumberSlider"></div>
+      </div>
+      <div class="control-row" id="mistakePossibilityControl">
+        <label>Mistake Possibility:</label>
+        <input type="number" id="mistakePossibilityInput" value="0.05" min="0" max="1" step="0.01">
+        <div id="mistakePossibilityDial"></div>
+      </div>
+      <div class="control-row" id="fixedRuleControl">
+        <label>Fixed Rule:</label>
+        <div id="fixedRuleToggle"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Strategy Setting Section -->
+  <div id="selectDiv" class="draggable-box">
+    <h2>Strategy Setting</h2>
+    <div class="select-row">
+      <label>Human Player:</label>
+      <div id="humanPlayerSelect"></div>
+    </div>
+    <div class="select-row">
+      <label>AI Type:</label>
+      <div id="aiTypeSelect"></div>
+    </div>
+  </div>
+
+  <!-- Evaluation Expectation Section -->
+  <div id="paramUnits" class="draggable-box">
+    <h2>Evaluation Expectation</h2>
+    <div class="units-row">
+      <div class="param-unit" id="unit_cooperationRate">
+        <div class="dial" id="cooperationRateDial"></div>
+        <input type="number" id="cooperationRateInput" value="0.5" min="0" step="0.01">
+        <div class="toggle" id="cooperationRateToggle"></div>
+        <div class="param-name">Cooperation Rate</div>
+      </div>
+      <div class="param-unit" id="unit_individualIncome">
+        <div class="dial" id="individualIncomeDial"></div>
+        <input type="number" id="individualIncomeInput" value="2" min="0" step="0.01">
+        <div class="toggle" id="individualIncomeToggle"></div>
+        <div class="param-name">Individual Income</div>
+      </div>
+      <div class="param-unit" id="unit_giniCoefficient">
+        <div class="dial" id="giniCoefficientDial"></div>
+        <input type="number" id="giniCoefficientInput" value="0.50" min="0" max="1" step="0.01">
+        <div class="toggle" id="giniCoefficientToggle"></div>
+        <div class="param-name">Gini Coefficient</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Designer & Evaluator Section -->
+  <div id="designerEvaluatorDiv" class="draggable-box">
+    <h2>Designer and Evaluator</h2>
+    <div class="deParam-row" id="row_batch_size">
+      <label>batch_size</label>
+      <input type="number" id="de_input_batch_size" value="1" min="1" max="100" step="1">
+      <div class="de-slider-container" id="de_slider_batch_size"></div>
+      <span class="de-param-desc">size of the batches</span>
+    </div>
+    <div class="deParam-row" id="row_lr">
+      <label>lr</label>
+      <input type="number" id="de_input_lr" value="0.01" min="0" max="1" step="0.001">
+      <div class="de-slider-container" id="de_slider_lr"></div>
+      <span class="de-param-desc">adam: learning rate</span>
+    </div>
+    <div class="deParam-row" id="row_b1">
+      <label>b1</label>
+      <input type="number" id="de_input_b1" value="0.5" min="0" max="1" step="0.01">
+      <div class="de-slider-container" id="de_slider_b1"></div>
+      <span class="de-param-desc">1st momentum decay</span>
+    </div>
+    <div class="deParam-row" id="row_b2">
+      <label>b2</label>
+      <input type="number" id="de_input_b2" value="0.999" min="0" max="1" step="0.001">
+      <div class="de-slider-container" id="de_slider_b2"></div>
+      <span class="de-param-desc">2nd momentum decay</span>
+    </div>
+    <div class="deParam-row" id="row_RuleDimension">
+      <label>RuleDimension</label>
+      <input type="number" id="de_input_RuleDimension" value="17" min="1" max="50" step="1">
+      <div class="de-slider-container" id="de_slider_RuleDimension"></div>
+      <span class="de-param-desc">trade rule dimension</span>
+    </div>
+    <div class="deParam-row" id="row_DE_train_episode">
+      <label>DE_train_episode</label>
+      <input type="number" id="de_input_DE_train_episode" value="1" min="1" max="100" step="1">
+      <div class="de-slider-container" id="de_slider_DE_train_episode"></div>
+      <span class="de-param-desc">training episodes</span>
+    </div>
+    <div class="deParam-row" id="row_DE_test_episode">
+      <label>DE_test_episode</label>
+      <input type="number" id="de_input_DE_test_episode" value="1" min="1" max="100" step="1">
+      <div class="de-slider-container" id="de_slider_DE_test_episode"></div>
+      <span class="de-param-desc">testing episodes</span>
+    </div>
+  </div>
+
+  <!-- Agent Training Section -->
+  <div id="agentTrainingDiv" class="draggable-box">
+    <h2>Agent Training</h2>
+    <div class="agentParam-row" id="row_agent_train_epoch">
+      <label>agent_train_epoch</label>
+      <input type="number" id="input_agent_train_epoch" value="10000" min="1000" max="100000" step="1000">
+      <div class="agent-slider-container" id="slider_agent_train_epoch"></div>
+      <span class="agent-param-desc"># of epochs</span>
+    </div>
+    <div class="agentParam-row" id="row_evaluationSize">
+      <label>evaluationSize</label>
+      <input type="number" id="input_evaluationSize" value="1" min="1" max="10" step="1">
+      <div class="agent-slider-container" id="slider_evaluationSize"></div>
+      <span class="agent-param-desc">eval metrics size</span>
+    </div>
+    <div class="agentParam-row" id="row_layersNum">
+      <label>layersNum</label>
+      <input type="number" id="input_layersNum" value="1" min="1" max="10" step="1">
+      <div class="agent-slider-container" id="slider_layersNum"></div>
+      <span class="agent-param-desc">generator layers</span>
+    </div>
+    <div class="agentParam-row" id="row_gamma">
+      <label>gamma</label>
+      <input type="number" id="input_gamma" value="0.99" min="0" max="1" step="0.01">
+      <div class="agent-slider-container" id="slider_gamma"></div>
+      <span class="agent-param-desc">discount factor</span>
+    </div>
+    <div class="agentParam-row" id="row_epsilon">
+      <label>epsilon</label>
+      <input type="number" id="input_epsilon" value="1.0" min="0" max="1" step="0.01">
+      <div class="agent-slider-container" id="slider_epsilon"></div>
+      <span class="agent-param-desc">initial epsilon</span>
+    </div>
+    <div class="agentParam-row" id="row_epsilon_decay">
+      <label>epsilon_decay</label>
+      <input type="number" id="input_epsilon_decay" value="0.999" min="0" max="1" step="0.001">
+      <div class="agent-slider-container" id="slider_epsilon_decay"></div>
+      <span class="agent-param-desc">decay rate</span>
+    </div>
+    <div class="agentParam-row" id="row_epsilon_min">
+      <label>epsilon_min</label>
+      <input type="number" id="input_epsilon_min" value="0.1" min="0" max="1" step="0.01">
+      <div class="agent-slider-container" id="slider_epsilon_min"></div>
+      <span class="agent-param-desc">min epsilon</span>
+    </div>
+    <div class="agentParam-row" id="row_memory_size">
+      <label>memory_size</label>
+      <input type="number" id="input_memory_size" value="10000" min="1000" max="100000" step="1000">
+      <div class="agent-slider-container" id="slider_memory_size"></div>
+      <span class="agent-param-desc">experience replay</span>
+    </div>
+    <div class="agentParam-row" id="row_target_update">
+      <label>target_update</label>
+      <input type="number" id="input_target_update" value="10" min="1" max="100" step="1">
+      <div class="agent-slider-container" id="slider_target_update"></div>
+      <span class="agent-param-desc">target update freq</span>
+    </div>
+    <div class="agentParam-row" id="row_state_size">
+      <label>state_size</label>
+      <input type="number" id="input_state_size" value="20" min="5" max="100" step="1">
+      <div class="agent-slider-container" id="slider_state_size"></div>
+      <span class="agent-param-desc">state vector size</span>
+    </div>
+  </div>
+
+  <!-- ========== all.html 的脚本：初始化 NexusUI 等 ========== -->
+  <script>
+    // 1. 给所有 .draggable-box 添加可拖拽和磁吸
+    $(function() {
+      $(".draggable-box").draggable({
+        snap: ".draggable-box",
+        snapMode: "outer",
+        snapTolerance: 20,
+        containment: "document"
+      });
+    });
+
+    // 2. Designer & Evaluator Section
+    const deParams = [
+      { id: "batch_size", defaultVal: 1, min: 1, max: 100, step: 1 },
+      { id: "lr", defaultVal: 0.01, min: 0, max: 1, step: 0.001 },
+      { id: "b1", defaultVal: 0.5, min: 0, max: 1, step: 0.01 },
+      { id: "b2", defaultVal: 0.999, min: 0, max: 1, step: 0.001 },
+      { id: "RuleDimension", defaultVal: 17, min: 1, max: 50, step: 1 },
+      { id: "DE_train_episode", defaultVal: 1, min: 1, max: 100, step: 1 },
+      { id: "DE_test_episode", defaultVal: 1, min: 1, max: 100, step: 1 }
+    ];
+    deParams.forEach(param => {
+      const input = document.getElementById("de_input_" + param.id);
+      const sliderDiv = document.getElementById("de_slider_" + param.id);
+      const slider = new Nexus.Slider(sliderDiv, {
+        size: [120,20],
+        mode: 'absolute',
+        min: param.min,
+        max: param.max,
+        step: param.step,
+        value: param.defaultVal,
+        orientation: 'horizontal'
+      });
+      slider.on('change', val => { input.value = val; });
+      input.addEventListener('change', () => {
+        let newVal = parseFloat(input.value);
+        if(isNaN(newVal)) newVal = param.min;
+        if(newVal < param.min) newVal = param.min;
+        if(newVal > param.max) newVal = param.max;
+        slider.value = newVal;
+      });
+    });
+
+    // 3. Agent Training Section
+    const agentParams = [
+      { id: "agent_train_epoch", defaultVal: 10000, min: 1000, max: 100000, step: 1000 },
+      { id: "evaluationSize", defaultVal: 1, min: 1, max: 10, step: 1 },
+      { id: "layersNum", defaultVal: 1, min: 1, max: 10, step: 1 },
+      { id: "gamma", defaultVal: 0.99, min: 0, max: 1, step: 0.01 },
+      { id: "epsilon", defaultVal: 1.0, min: 0, max: 1, step: 0.01 },
+      { id: "epsilon_decay", defaultVal: 0.999, min: 0, max: 1, step: 0.001 },
+      { id: "epsilon_min", defaultVal: 0.1, min: 0, max: 1, step: 0.01 },
+      { id: "memory_size", defaultVal: 10000, min: 1000, max: 100000, step: 1000 },
+      { id: "target_update", defaultVal: 10, min: 1, max: 100, step: 1 },
+      { id: "state_size", defaultVal: 20, min: 5, max: 100, step: 1 }
+    ];
+    agentParams.forEach(param => {
+      const input = document.getElementById("input_" + param.id);
+      const sliderDiv = document.getElementById("slider_" + param.id);
+      const slider = new Nexus.Slider(sliderDiv, {
+        size: [120,20],
+        mode: 'absolute',
+        min: param.min,
+        max: param.max,
+        step: param.step,
+        value: param.defaultVal,
+        orientation: 'horizontal'
+      });
+      slider.on('change', val => { input.value = val; });
+      input.addEventListener('change', () => {
+        let newVal = parseFloat(input.value);
+        if(isNaN(newVal)) newVal = param.min;
+        if(newVal < param.min) newVal = param.min;
+        if(newVal > param.max) newVal = param.max;
+        slider.value = newVal;
+      });
+    });
+
+    // 4. Parameter Units Section (cooperationRate, individualIncome, giniCoefficient)
+    const cooperationRateDial = new Nexus.Dial('#cooperationRateDial', {
+      size: [75,75],
+      interaction: 'radial',
+      mode: 'relative',
+      min: 0,
+      max: 5,
+      step: 0.01,
+      value: 0.5
+    });
+    const cooperationRateInput = document.getElementById('cooperationRateInput');
+    cooperationRateDial.on('change', val => { cooperationRateInput.value = val.toFixed(2); });
+    cooperationRateInput.addEventListener('change', () => {
+      let newVal = parseFloat(cooperationRateInput.value);
+      if(isNaN(newVal)) newVal = 0;
+      if(newVal < 0) newVal = 0;
+      if(newVal > 5) newVal = 5;
+      cooperationRateDial.value = newVal;
+    });
+    const cooperationRateToggle = new Nexus.Toggle('#cooperationRateToggle', { size: [40,20], state: false });
+
+    const individualIncomeDial = new Nexus.Dial('#individualIncomeDial', {
+      size: [75,75],
+      interaction: 'radial',
+      mode: 'relative',
+      min: 0,
+      max: 10,
+      step: 0.01,
+      value: 2
+    });
+    const individualIncomeInput = document.getElementById('individualIncomeInput');
+    individualIncomeDial.on('change', val => { individualIncomeInput.value = val.toFixed(2); });
+    individualIncomeInput.addEventListener('change', () => {
+      let newVal = parseFloat(individualIncomeInput.value);
+      if(isNaN(newVal)) newVal = 0;
+      if(newVal < 0) newVal = 0;
+      if(newVal > 10) newVal = 10;
+      individualIncomeDial.value = newVal;
+    });
+    const individualIncomeToggle = new Nexus.Toggle('#individualIncomeToggle', { size: [40,20], state: false });
+
+    const giniCoefficientDial = new Nexus.Dial('#giniCoefficientDial', {
+      size: [75,75],
+      interaction: 'radial',
+      mode: 'relative',
+      min: 0,
+      max: 1,
+      step: 0.01,
+      value: 0.50
+    });
+    const giniCoefficientInput = document.getElementById('giniCoefficientInput');
+    giniCoefficientDial.on('change', val => { giniCoefficientInput.value = val.toFixed(2); });
+    giniCoefficientInput.addEventListener('change', () => {
+      let newVal = parseFloat(giniCoefficientInput.value);
+      if(isNaN(newVal)) newVal = 0;
+      if(newVal < 0) newVal = 0;
+      if(newVal > 1) newVal = 1;
+      giniCoefficientDial.value = newVal;
+    });
+    const giniCoefficientToggle = new Nexus.Toggle('#giniCoefficientToggle', { size: [40,20], state: false });
+
+    // 5. Classic Rule Section (Initial population sliders等)
+    const sliderParamsClassic = [
+      { name: 'random',     color: '#2A2A99', defaultVal: 4 },
+      { name: 'cheater',    color: '#0066ff', defaultVal: 2 },
+      { name: 'cooperator', color: '#ff9900', defaultVal: 1 },
+      { name: 'copycat',    color: '#990099', defaultVal: 5 },
+      { name: 'grudger',    color: '#ff0000', defaultVal: 7 },
+      { name: 'detective',  color: '#ffff00', defaultVal: 6 },
+      { name: 'ai',         color: '#999999', defaultVal: 9 },
+      { name: 'human',      color: '#009900', defaultVal: 4 }
+    ];
+    const sliderContainerClassic = document.getElementById('sliderContainer');
+    sliderParamsClassic.forEach(param => {
+      const rowDiv = document.createElement('div');
+      rowDiv.className = 'slider-row';
+      const label = document.createElement('label');
+      label.textContent = param.name;
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = 0;
+      input.max = 25;
+      input.value = param.defaultVal;
+      const sliderDiv = document.createElement('div');
+      rowDiv.appendChild(label);
+      rowDiv.appendChild(input);
+      rowDiv.appendChild(sliderDiv);
+      sliderContainerClassic.appendChild(rowDiv);
+      const slider = new Nexus.Slider(sliderDiv, {
+        size: [120,15],
+        mode: 'absolute',
+        min: 0,
+        max: 25,
+        step: 1,
+        value: param.defaultVal,
+        orientation: 'horizontal'
+      });
+      slider.colorize("accent", param.color);
+      slider.on('change', val => { input.value = val; });
+      input.addEventListener('change', () => {
+        let newVal = parseInt(input.value, 10);
+        if(isNaN(newVal)) newVal = 0;
+        if(newVal < 0) newVal = 0;
+        if(newVal > 25) newVal = 25;
+        slider.value = newVal;
+      });
+    });
+    const roundNumberSlider = new Nexus.Slider('#roundNumberSlider', {
+      size: [120,15],
+      mode: 'absolute',
+      min: 1,
+      max: 100,
+      step: 1,
+      value: 50,
+      orientation: 'horizontal'
+    });
+    const roundNumberInput = document.getElementById('roundNumberInput');
+    roundNumberSlider.on('change', val => { roundNumberInput.value = val; });
+    roundNumberInput.addEventListener('change', () => {
+      let newVal = parseInt(roundNumberInput.value, 10);
+      if(isNaN(newVal)) newVal = 1;
+      if(newVal < 1) newVal = 1;
+      if(newVal > 100) newVal = 100;
+      roundNumberSlider.value = newVal;
+    });
+    const reproductionNumberSlider = new Nexus.Slider('#reproductionNumberSlider', {
+      size: [120,15],
+      mode: 'absolute',
+      min: 0,
+      max: 25,
+      step: 1,
+      value: 5,
+      orientation: 'horizontal'
+    });
+    const reproductionNumberInput = document.getElementById('reproductionNumberInput');
+    reproductionNumberSlider.on('change', val => { reproductionNumberInput.value = val; });
+    reproductionNumberInput.addEventListener('change', () => {
+      let newVal = parseInt(reproductionNumberInput.value, 10);
+      if(isNaN(newVal)) newVal = 0;
+      if(newVal < 0) newVal = 0;
+      if(newVal > 25) newVal = 25;
+      reproductionNumberSlider.value = newVal;
+    });
+    const mistakePossibilityDial = new Nexus.Dial('#mistakePossibilityDial', {
+      size: [60,60],
+      interaction: 'radial',
+      mode: 'relative',
+      min: 0,
+      max: 1,
+      step: 0,
+      value: 0.05
+    });
+    const mistakePossibilityInput = document.getElementById('mistakePossibilityInput');
+    mistakePossibilityDial.on('change', val => { mistakePossibilityInput.value = val.toFixed(2); });
+    mistakePossibilityInput.addEventListener('change', () => {
+      let newVal = parseFloat(mistakePossibilityInput.value);
+      if(isNaN(newVal)) newVal = 0;
+      if(newVal < 0) newVal = 0;
+      if(newVal > 1) newVal = 1;
+      mistakePossibilityDial.value = newVal;
+    });
+    const fixedRuleToggle = new Nexus.Toggle('#fixedRuleToggle', { size: [40,20], state: false });
+
+    // 6. Select Controls
+    const humanPlayerSelect = new Nexus.Select('#humanPlayerSelect', {
+      size: [100,30],
+      options: ['False','True']
+    });
+    humanPlayerSelect.value = 0;
+    const aiTypeSelect = new Nexus.Select('#aiTypeSelect', {
+      size: [100,30],
+      options: ['Q','DQN']
+    });
+    aiTypeSelect.value = 0;
+  </script>
+
+
+  <!-- ======================================== -->
+  <!-- =========== 2. 原 index.html 部分 ======= -->
+  <!-- ======================================== -->
+
+  <!-- 由于 index.html 的主要内容是三个“可拖拽可视化区域”，这里直接放在 body 中 -->
+  <div class="container">
+    <!-- Rule Visualization Section -->
+    <section id="rule-section">
+      <div id="ruleVisualizationDiv" class="draggable-box">
+        <h3 class="section-title">Rule Visualization</h3>
+        <!-- 1. Initial Population -->
+        <div class="row">
+          <div class="col-md-6">
+            <div id="pieChart" style="width:100%; height:300px;"></div>
+          </div>
+          <div class="col-md-6">
+            <div id="lineChartInitialPopulation" style="width:100%; height:300px;"></div>
+          </div>
+        </div>
+        <!-- 2. Trade Rule and Round, Reproduction & Mistake -->
+        <div class="row" style="margin-top:20px;">
+          <div class="col-md-6">
+            <div class="trade-rules-section">
+              <div id="tradeRuleChart" style="width:100%; height:300px;"></div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div id="lineChartCombined" style="width:100%; height:300px;"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Strategy Visualization Section -->
+    <section id="strategy-section">
+      <div id="strategyVisualizationDiv" class="draggable-box">
+        <h3 class="section-title">Strategy Visualization</h3>
+        <p>This section displays visualizations related to strategies, such as strategy trends and agent decision paths.</p>
+
+        <!-- 1. 3 Strategy Images（并排显示） -->
+        <div class="row">
+          <div class="col-md-4" style="margin-bottom:20px;">
+            <img src="../image/NPC_strategies.png" alt="NPC Strategy" style="width:100%; height:auto;">
+          </div>
+          <div class="col-md-4" style="margin-bottom:20px;">
+            <img src="../image/human_strategy.png" alt="Human Strategy" style="width:100%; height:auto;">
+          </div>
+          <div class="col-md-4" style="margin-bottom:20px;">
+            <img src="../image/AI_strategies.png" alt="AI Strategy" style="width:100%; height:auto;">
+          </div>
+        </div>
+
+        <!-- 2. AI Agent Line Chart -->
+        <div class="row" style="margin-top:20px;">
+          <div class="col-md-12">
+            <div id="strategyLineChart" style="width:100%; height:300px;"></div>
+          </div>
+        </div>
+
+        <!-- 3. Q Table Image -->
+        <div class="row" style="margin-top:20px; text-align:center;">
+          <div class="col-md-12">
+            <img id="qTableImage" src="../image/qtable.png" alt="Q Table Visualization" style="width:100%; height:auto;">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Evaluation Visualization Section -->
+    <section id="evaluation-section">
+      <div id="evaluationVisualizationDiv" class="draggable-box">
+        <h3 class="section-title">Evaluation Visualization</h3>
+        <p>This section displays evaluation metrics, such as cooperation rate, individual income, and Gini coefficient.</p>
+
+        <!-- 1. Cooperation Rate -->
+        <div class="row" style="margin-bottom:20px;">
+          <div class="col-md-6">
+            <h4>Cooperation Rate (Pie)</h4>
+            <div id="cooperationRatePie" style="width:100%; height:300px;"></div>
+          </div>
+          <div class="col-md-6">
+            <h4>Cooperation Rate (Line)</h4>
+            <div id="cooperationRateLine" style="width:100%; height:300px;"></div>
+          </div>
+        </div>
+
+        <!-- 2. Individual Income -->
+        <div class="row" style="margin-bottom:20px;">
+          <div class="col-md-6">
+            <h4>Individual Income (Histogram)</h4>
+            <div id="individualIncomeHistogram" style="width:100%; height:300px;"></div>
+          </div>
+          <div class="col-md-6">
+            <h4>Individual Income (Line)</h4>
+            <div id="individualIncomeLine" style="width:100%; height:300px;"></div>
+          </div>
+        </div>
+
+        <!-- 3. Gini Coefficient -->
+        <div class="row">
+          <div class="col-md-6">
+            <h4>Gini Coefficient (Radar)</h4>
+            <div id="giniCoefficientRadar" style="width:100%; height:300px;"></div>
+          </div>
+          <div class="col-md-6">
+            <h4>Gini Coefficient (Line)</h4>
+            <div id="giniCoefficientLine" style="width:100%; height:300px;"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ========== index.html 中的脚本：绘制Plotly图表等 ========== -->
+  <script>
+    // 使 index.html 中这些可拖拽区域也具备 draggable
+    $(function(){
+      $(".draggable-box").draggable({
+        snap: ".draggable-box",
+        snapMode: "outer",
+        snapTolerance: 20,
+        containment: "document"
+      });
+    });
+
+    // ========== Rule Visualization (index.html) ==========
+    var pieData = [{
+      values: [10, 15, 20, 12, 8, 18, 14, 9],
+      labels: ['Role1','Role2','Role3','Role4','Role5','Role6','Role7','Role8'],
+      type: 'pie'
+    }];
+    Plotly.newPlot('pieChart', pieData, {title: 'Initial Population Distribution'});
+
+    var timePoints = [0,1,2,3,4,5,6,7,8,9];
+    var tracesInitial = [];
+    var roles = ['Role1','Role2','Role3','Role4','Role5','Role6','Role7','Role8'];
+    roles.forEach(function(role) {
+      var values = timePoints.map(function(t){ return Math.round(Math.random()*50 + 10); });
+      tracesInitial.push({
+        x: timePoints,
+        y: values,
+        mode: 'lines+markers',
+        name: role
+      });
+    });
+    var layoutInitial = {
+      title: 'Initial Population Over Time',
+      xaxis: {title: 'Time'},
+      yaxis: {title: 'Population Count'}
+    };
+    Plotly.newPlot('lineChartInitialPopulation', tracesInitial, layoutInitial);
+
+    var traceAPlayer = {
+      x: timePoints,
+      y: [0,0,0,0,0,0,0,0,0,0],
+      mode: 'lines+markers',
+      name: 'Rule A (Player)'
+    };
+    var traceAOpponent = {
+      x: timePoints,
+      y: [0,0,0,0,0,0,0,0,0,0],
+      mode: 'lines+markers',
+      name: 'Rule A (Opponent)'
+    };
+    var traceBPlayer = {
+      x: timePoints,
+      y: [3,3,3,3,3,3,3,3,3,3],
+      mode: 'lines+markers',
+      name: 'Rule B (Player)'
+    };
+    var traceBOpponent = {
+      x: timePoints,
+      y: [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+      mode: 'lines+markers',
+      name: 'Rule B (Opponent)'
+    };
+    var traceCPlayer = {
+      x: timePoints,
+      y: [2,2,2,2,2,2,2,2,2,2],
+      mode: 'lines+markers',
+      name: 'Rule C (Player)'
+    };
+    var traceCOpponent = {
+      x: timePoints,
+      y: [2,2,2,2,2,2,2,2,2,2],
+      mode: 'lines+markers',
+      name: 'Rule C (Opponent)'
+    };
+    var layoutTrade = {
+      title: 'Trade Rule Changes',
+      xaxis: { title: 'Time' },
+      yaxis: { title: 'Trade Rule Value' }
+    };
+    Plotly.newPlot('tradeRuleChart', [traceAPlayer, traceAOpponent, traceBPlayer, traceBOpponent, traceCPlayer, traceCOpponent], layoutTrade);
+
+    var roundNumbers = timePoints.map(t => Math.round(Math.random()*20));
+    var reproductionNumbers = timePoints.map(t => Math.round(Math.random()*20));
+    var mistakePossibilities = timePoints.map(t => Math.random().toFixed(2));
+    var traceRound = {
+      x: timePoints,
+      y: roundNumbers,
+      mode: 'lines+markers',
+      name: 'Round Number',
+      line: {color: 'blue'},
+      yaxis: 'y1'
+    };
+    var traceRepro = {
+      x: timePoints,
+      y: reproductionNumbers,
+      mode: 'lines+markers',
+      name: 'Reproduction Number',
+      line: {color: 'green'},
+      yaxis: 'y1'
+    };
+    var traceMistake = {
+      x: timePoints,
+      y: mistakePossibilities,
+      mode: 'lines+markers',
+      name: 'Mistake Possibility',
+      line: {color: 'red'},
+      yaxis: 'y2'
+    };
+    var layoutCombined = {
+      title: 'Round, Reproduction & Mistake During Training',
+      xaxis: { title: 'Time' },
+      yaxis: {
+        title: 'Count (0-20)',
+        range: [0,20]
+      },
+      yaxis2: {
+        title: 'Mistake Possibility (0-1)',
+        overlaying: 'y',
+        side: 'right',
+        range: [0,1]
+      }
+    };
+    Plotly.newPlot('lineChartCombined', [traceRound, traceRepro, traceMistake], layoutCombined);
+
+
+    // ========== Strategy Visualization Section ==========
+    var traceStrategy = {
+      x: timePoints,
+      y: timePoints.map(t => Math.round(Math.random()*100)),
+      mode: 'lines+markers',
+      name: 'Q Learning Performance',
+      line: {color: 'blue'}
+    };
+    var layoutStrategy = {
+      title: 'Q Learning Training Progress',
+      xaxis: {title: 'Epoch'},
+      yaxis: {title: 'Performance'}
+    };
+    Plotly.newPlot('strategyLineChart', [traceStrategy], layoutStrategy);
+
+
+    // ========== Evaluation Visualization Section ==========
+    var finalCoopRates = [0.8, 0.6, 0.7, 0.9, 0.5, 0.85, 0.65, 0.75];
+    var pieDataEval = [{
+      values: finalCoopRates,
+      labels: roles,
+      type: 'pie'
+    }];
+    Plotly.newPlot('cooperationRatePie', pieDataEval, {title: 'Final Cooperation Rate'});
+
+    var coopTraces = [];
+    roles.forEach(function(role) {
+      var values = timePoints.map(function(t){ return (Math.random()).toFixed(2); });
+      coopTraces.push({
+        x: timePoints,
+        y: values,
+        mode: 'lines+markers',
+        name: role
+      });
+    });
+    var layoutCoopLine = {
+      title: 'Cooperation Rate Evolution',
+      xaxis: { title: 'Epoch' },
+      yaxis: { title: 'Cooperation Rate', range: [0,1] }
+    };
+    Plotly.newPlot('cooperationRateLine', coopTraces, layoutCoopLine);
+
+    var finalIncome = [200, 180, 220, 210, 190, 230, 205, 215];
+    var incomeBarData = [{
+      x: roles,
+      y: finalIncome,
+      type: 'bar'
+    }];
+    Plotly.newPlot('individualIncomeHistogram', incomeBarData, {
+      title: 'Final Individual Income',
+      xaxis: {title: 'Role'},
+      yaxis: {title: 'Income'}
+    });
+
+    var incomeTraces = [];
+    roles.forEach(function(role) {
+      var values = timePoints.map(function(t){ return Math.round(Math.random()*50 + 180); });
+      incomeTraces.push({
+        x: timePoints,
+        y: values,
+        mode: 'lines+markers',
+        name: role
+      });
+    });
+    var layoutIncomeLine = {
+      title: 'Individual Income Evolution',
+      xaxis: { title: 'Epoch' },
+      yaxis: { title: 'Income' }
+    };
+    Plotly.newPlot('individualIncomeLine', incomeTraces, layoutIncomeLine);
+
+    var finalGini = [0.3, 0.4, 0.35, 0.45, 0.32, 0.38, 0.41, 0.37];
+    var radarData = [{
+      type: 'scatterpolar',
+      r: finalGini,
+      theta: roles,
+      fill: 'toself',
+      name: 'Final Gini Coefficient'
+    }];
+    var layoutRadar = {
+      polar: {
+        radialaxis: {
+          visible: true,
+          range: [0,1]
+        }
+      },
+      showlegend: false,
+      title: 'Final Gini Coefficient'
+    };
+    Plotly.newPlot('giniCoefficientRadar', radarData, layoutRadar);
+
+    var giniTraces = [];
+    roles.forEach(function(role) {
+      var values = timePoints.map(function(t){ return (Math.random()*0.5 + 0.3).toFixed(2); });
+      giniTraces.push({
+        x: timePoints,
+        y: values,
+        mode: 'lines+markers',
+        name: role
+      });
+    });
+    var layoutGiniLine = {
+      title: 'Gini Coefficient Evolution',
+      xaxis: { title: 'Epoch' },
+      yaxis: { title: 'Gini Coefficient', range: [0,1] }
+    };
+    Plotly.newPlot('giniCoefficientLine', giniTraces, layoutGiniLine);
+  </script>
+
+  <!-- 如果还需要引用 index.html 的自定义脚本文件，可在此处继续添加
+       <script src="../js/script.js"></script>
+  -->
+
+</body>
+</html>

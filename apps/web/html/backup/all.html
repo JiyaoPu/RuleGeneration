@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Merged Dashboard with Snap</title>
+  <!-- 引入 jQuery 与 jQuery UI -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/smoothness/jquery-ui.css">
+  <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+  <!-- 引入 NexusUI -->
+  <script src="https://cdn.jsdelivr.net/npm/nexusui@latest/dist/NexusUI.js"></script>
+  <style>
+    /* 页面整体 */
+    body {
+      margin: 0;
+      padding: 0;
+      background: #eee;
+      font-family: sans-serif;
+      overflow: hidden;
+    }
+  
+    /* 通用可拖拽容器 */
+    .draggable-box {
+      position: absolute;
+      border: 2px solid #333;
+      background: #fff;
+      padding: 10px;
+      box-sizing: border-box;
+      overflow: auto;
+    }
+  
+    /* 容器内标题统一样式（可根据需求改成1em或1.2em） */
+    .draggable-box h2 {
+      text-align: center;
+      font-size: 1.2em;
+      margin: 5px 0 10px;
+    }
+  
+    /* 容器内标题统一样式（可根据需求改成1em或1.2em） */
+    .draggable-box h3 {
+      text-align: left;
+      font-size: 1em;
+      margin: 5px 0 10px;
+    }
+
+    /* 通用行布局：标签 + 输入框 + 滑块 + 描述等 */
+    .flex-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .flex-row label {
+      font-size: 0.9em;
+      margin-right: 5px;
+    }
+    .flex-row input[type="number"] {
+      padding: 3px;
+      text-align: center;
+      margin-right: 5px;
+      font-size: 0.9em;
+    }
+    .param-desc {
+      font-size: 0.8em;
+      color: #555;
+    }
+  
+    /* --- 各个特定区域的布局及尺寸 --- */
+  
+    /* Designer & Evaluator */
+    #designerEvaluatorDiv {
+      top: 0;
+      left: 35vw;
+      width: 35vw;
+      height: 50vh;
+    }
+  
+    /* Agent Training */
+    #agentTrainingDiv {
+      top: 0;
+      right: 0;
+      width: 35vw;
+      height: 70vh;
+    }
+  
+    /* Select Controls */
+    #selectDiv {
+      bottom: 0;
+      left: 0;
+      width: 35vw;
+      height: 18vh;
+    }
+  
+    /* Parameter Units */
+    #paramUnits {
+      bottom: 0;
+      right: 0;
+      width: 35vw;
+      height: 35vh;
+      display: flex;             /* 标题在上，内容在下 */
+      flex-direction: column;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+
+    #paramUnits .units-row {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-around;
+      align-items: center;
+      flex: 1;  /* 撑满剩余空间 */
+    }
+    .param-unit {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 5px;
+    }
+    .param-unit .dial,
+    .param-unit .toggle {
+      margin-bottom: 5px;
+    }
+    .param-unit input[type="number"] {
+      width: 60px;
+      margin-bottom: 5px;
+      text-align: center;
+    }
+    .param-name {
+      font-size: 0.9em;
+      font-weight: bold;
+    }
+  
+    /* Classic Rule */
+    #classicRule {
+      top: 0;
+      left: 0;
+      width: 35vw;
+      height: 80vh;
+    }
+    /* 如果有需要禁用resize，可使用： resize: none; */
+  
+    /* 规则或其他表格的样式 */
+    .trade-rules-section {
+      margin: 2px auto;
+    }
+    .trade-rules-section table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8em;
+    }
+    .trade-rules-section table,
+    .trade-rules-section th,
+    .trade-rules-section td {
+      border: 1px solid #666;
+    }
+    .trade-rules-section th,
+    .trade-rules-section td {
+      padding: 2px;
+      text-align: center;
+    }
+  
+    /* 图标及颜色 */
+    .icon {
+      font-size: 1em;
+      margin: 0 2px;
+    }
+    .cheat {
+      color: red;
+    }
+    .cooperate {
+      color: green;
+    }
+  
+    /* 分值输入框 */
+    .score-input {
+      width: 30px;
+      font-size: 0.8em;
+      margin: 0 2px;
+      text-align: center;
+    }
+  
+    /* 其他零散的区块或控制行 */
+    .extra-section {
+      text-align: left;
+      margin: 5px auto;
+    }
+  </style>
+  
+</head>
+<body>
+
+  <!-- Rule setting Section -->
+  <div id="classicRule" class="draggable-box">
+    <h2>Rule setting</h2>
+    <div class="slider-section">
+      <h3>Initial population</h3>
+      <div id="sliderContainer"></div>
+    </div>
+    <div class="trade-rules-section">
+      <h3>Trade Rules</h3>
+      <table>
+        <tbody>
+          <tr>
+            <td>
+              <span class="icon cheat">&#x2694;</span>
+              <span class="icon cheat">&#x2694;</span>
+            </td>
+            <td>
+              <span class="icon cheat">&#x2694;</span>
+              <span class="icon cooperate">&#x1F91D;</span>
+            </td>
+            <td>
+              <span class="icon cooperate">&#x1F91D;</span>
+              <span class="icon cooperate">&#x1F91D;</span>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <input type="number" class="score-input" value="0">
+              <input type="number" class="score-input" value="0">
+            </td>
+            <td>
+              <input type="number" class="score-input" value="3">
+              <input type="number" class="score-input" value="-1">
+            </td>
+            <td>
+              <input type="number" class="score-input" value="2">
+              <input type="number" class="score-input" value="2">
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="extra-section">
+      <h3>Additional Controls</h3>
+      <div class="control-row" id="roundNumberControl">
+        <label>Round Number:</label>
+        <input type="number" id="roundNumberInput" value="50" min="1" max="100">
+        <div id="roundNumberSlider"></div>
+      </div>
+      <div class="control-row" id="reproductionNumberControl">
+        <label>Reproduction Number:</label>
+        <input type="number" id="reproductionNumberInput" value="5" min="0" max="25">
+        <div id="reproductionNumberSlider"></div>
+      </div>
+      <div class="control-row" id="mistakePossibilityControl">
+        <label>Mistake Possibility:</label>
+        <input type="number" id="mistakePossibilityInput" value="0.05" min="0" max="1" step="0.01">
+        <div id="mistakePossibilityDial"></div>
+      </div>
+      <div class="control-row" id="fixedRuleControl">
+        <label>Fixed Rule:</label>
+        <div id="fixedRuleToggle"></div>
+      </div>
+    </div>
+  </div> 
+
+  <!-- Strategy Setting Section -->
+  <div id="selectDiv" class="draggable-box">
+    <h2>Strategy Setting</h2>
+    <div class="select-row">
+      <label>Human Player:</label>
+      <div id="humanPlayerSelect"></div>
+    </div>
+    <div class="select-row">
+      <label>AI Type:</label>
+      <div id="aiTypeSelect"></div>
+    </div>
+  </div>
+
+  <!-- Evaluation Expectation Section -->
+  <div id="paramUnits" class="draggable-box">
+    <h2>Evaluation Expectation</h2>
+    <!-- 内部再加一个 .units-row 容器来横向排列三个参数单元 -->
+    <div class="units-row">
+      <div class="param-unit" id="unit_cooperationRate">
+        <div class="dial" id="cooperationRateDial"></div>
+        <input type="number" id="cooperationRateInput" value="0.5" min="0" step="0.01">
+        <div class="toggle" id="cooperationRateToggle"></div>
+        <div class="param-name">Cooperation Rate</div>
+      </div>
+      
+      <div class="param-unit" id="unit_individualIncome">
+        <div class="dial" id="individualIncomeDial"></div>
+        <input type="number" id="individualIncomeInput" value="2" min="0" step="0.01">
+        <div class="toggle" id="individualIncomeToggle"></div>
+        <div class="param-name">Individual Income</div>
+      </div>
+      
+      <div class="param-unit" id="unit_giniCoefficient">
+        <div class="dial" id="giniCoefficientDial"></div>
+        <input type="number" id="giniCoefficientInput" value="0.50" min="0" max="1" step="0.01">
+        <div class="toggle" id="giniCoefficientToggle"></div>
+        <div class="param-name">Gini Coefficient</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Designer & Evaluator Section -->
+  <div id="designerEvaluatorDiv" class="draggable-box">
+    <h2>Designer and Evaluator</h2>
+    <div class="deParam-row" id="row_batch_size">
+      <label>batch_size</label>
+      <input type="number" id="de_input_batch_size" value="1" min="1" max="100" step="1">
+      <div class="de-slider-container" id="de_slider_batch_size"></div>
+      <span class="de-param-desc">size of the batches</span>
+    </div>
+    <div class="deParam-row" id="row_lr">
+      <label>lr</label>
+      <input type="number" id="de_input_lr" value="0.01" min="0" max="1" step="0.001">
+      <div class="de-slider-container" id="de_slider_lr"></div>
+      <span class="de-param-desc">adam: learning rate</span>
+    </div>
+    <div class="deParam-row" id="row_b1">
+      <label>b1</label>
+      <input type="number" id="de_input_b1" value="0.5" min="0" max="1" step="0.01">
+      <div class="de-slider-container" id="de_slider_b1"></div>
+      <span class="de-param-desc">1st momentum decay</span>
+    </div>
+    <div class="deParam-row" id="row_b2">
+      <label>b2</label>
+      <input type="number" id="de_input_b2" value="0.999" min="0" max="1" step="0.001">
+      <div class="de-slider-container" id="de_slider_b2"></div>
+      <span class="de-param-desc">2nd momentum decay</span>
+    </div>
+    <div class="deParam-row" id="row_RuleDimension">
+      <label>RuleDimension</label>
+      <input type="number" id="de_input_RuleDimension" value="17" min="1" max="50" step="1">
+      <div class="de-slider-container" id="de_slider_RuleDimension"></div>
+      <span class="de-param-desc">trade rule dimension</span>
+    </div>
+    <div class="deParam-row" id="row_DE_train_episode">
+      <label>DE_train_episode</label>
+      <input type="number" id="de_input_DE_train_episode" value="1" min="1" max="100" step="1">
+      <div class="de-slider-container" id="de_slider_DE_train_episode"></div>
+      <span class="de-param-desc">training episodes</span>
+    </div>
+    <div class="deParam-row" id="row_DE_test_episode">
+      <label>DE_test_episode</label>
+      <input type="number" id="de_input_DE_test_episode" value="1" min="1" max="100" step="1">
+      <div class="de-slider-container" id="de_slider_DE_test_episode"></div>
+      <span class="de-param-desc">testing episodes</span>
+    </div>
+  </div>
+
+  <!-- Agent Training Section (Top Right) -->
+  <div id="agentTrainingDiv" class="draggable-box">
+    <h2>Agent Training</h2>
+    <div class="agentParam-row" id="row_agent_train_epoch">
+      <label>agent_train_epoch</label>
+      <input type="number" id="input_agent_train_epoch" value="10000" min="1000" max="100000" step="1000">
+      <div class="agent-slider-container" id="slider_agent_train_epoch"></div>
+      <span class="agent-param-desc"># of epochs</span>
+    </div>
+    <div class="agentParam-row" id="row_evaluationSize">
+      <label>evaluationSize</label>
+      <input type="number" id="input_evaluationSize" value="1" min="1" max="10" step="1">
+      <div class="agent-slider-container" id="slider_evaluationSize"></div>
+      <span class="agent-param-desc">eval metrics size</span>
+    </div>
+    <div class="agentParam-row" id="row_layersNum">
+      <label>layersNum</label>
+      <input type="number" id="input_layersNum" value="1" min="1" max="10" step="1">
+      <div class="agent-slider-container" id="slider_layersNum"></div>
+      <span class="agent-param-desc">generator layers</span>
+    </div>
+    <div class="agentParam-row" id="row_gamma">
+      <label>gamma</label>
+      <input type="number" id="input_gamma" value="0.99" min="0" max="1" step="0.01">
+      <div class="agent-slider-container" id="slider_gamma"></div>
+      <span class="agent-param-desc">discount factor</span>
+    </div>
+    <div class="agentParam-row" id="row_epsilon">
+      <label>epsilon</label>
+      <input type="number" id="input_epsilon" value="1.0" min="0" max="1" step="0.01">
+      <div class="agent-slider-container" id="slider_epsilon"></div>
+      <span class="agent-param-desc">initial epsilon</span>
+    </div>
+    <div class="agentParam-row" id="row_epsilon_decay">
+      <label>epsilon_decay</label>
+      <input type="number" id="input_epsilon_decay" value="0.999" min="0" max="1" step="0.001">
+      <div class="agent-slider-container" id="slider_epsilon_decay"></div>
+      <span class="agent-param-desc">decay rate</span>
+    </div>
+    <div class="agentParam-row" id="row_epsilon_min">
+      <label>epsilon_min</label>
+      <input type="number" id="input_epsilon_min" value="0.1" min="0" max="1" step="0.01">
+      <div class="agent-slider-container" id="slider_epsilon_min"></div>
+      <span class="agent-param-desc">min epsilon</span>
+    </div>
+    <div class="agentParam-row" id="row_memory_size">
+      <label>memory_size</label>
+      <input type="number" id="input_memory_size" value="10000" min="1000" max="100000" step="1000">
+      <div class="agent-slider-container" id="slider_memory_size"></div>
+      <span class="agent-param-desc">experience replay</span>
+    </div>
+    <div class="agentParam-row" id="row_target_update">
+      <label>target_update</label>
+      <input type="number" id="input_target_update" value="10" min="1" max="100" step="1">
+      <div class="agent-slider-container" id="slider_target_update"></div>
+      <span class="agent-param-desc">target update freq</span>
+    </div>
+    <div class="agentParam-row" id="row_state_size">
+      <label>state_size</label>
+      <input type="number" id="input_state_size" value="20" min="5" max="100" step="1">
+      <div class="agent-slider-container" id="slider_state_size"></div>
+      <span class="agent-param-desc">state vector size</span>
+    </div>
+  </div>
+
+  <script>
+    // 所有容器添加拖动功能（固定大小，仅拖动），并增加磁吸功能
+    $(function() {
+      $(".draggable-box").draggable({
+        snap: ".draggable-box",
+        snapMode: "outer",
+        snapTolerance: 20,
+        containment: "document"
+      });
+    });
+
+    /* ===== Designer & Evaluator Section ===== */
+    const deParams = [
+      { id: "batch_size", defaultVal: 1, min: 1, max: 100, step: 1 },
+      { id: "lr", defaultVal: 0.01, min: 0, max: 1, step: 0.001 },
+      { id: "b1", defaultVal: 0.5, min: 0, max: 1, step: 0.01 },
+      { id: "b2", defaultVal: 0.999, min: 0, max: 1, step: 0.001 },
+      { id: "RuleDimension", defaultVal: 17, min: 1, max: 50, step: 1 },
+      { id: "DE_train_episode", defaultVal: 1, min: 1, max: 100, step: 1 },
+      { id: "DE_test_episode", defaultVal: 1, min: 1, max: 100, step: 1 }
+    ];
+    deParams.forEach(param => {
+      const input = document.getElementById("de_input_" + param.id);
+      const sliderDiv = document.getElementById("de_slider_" + param.id);
+      const slider = new Nexus.Slider(sliderDiv, {
+        size: [120,20],
+        mode: 'absolute',
+        min: param.min,
+        max: param.max,
+        step: param.step,
+        value: param.defaultVal,
+        orientation: 'horizontal'
+      });
+      slider.on('change', val => { input.value = val; });
+      input.addEventListener('change', () => {
+        let newVal = parseFloat(input.value);
+        if(isNaN(newVal)) newVal = param.min;
+        if(newVal < param.min) newVal = param.min;
+        if(newVal > param.max) newVal = param.max;
+        slider.value = newVal;
+      });
+    });
+
+    /* ===== Agent Training Section ===== */
+    const agentParams = [
+      { id: "agent_train_epoch", defaultVal: 10000, min: 1000, max: 100000, step: 1000 },
+      { id: "evaluationSize", defaultVal: 1, min: 1, max: 10, step: 1 },
+      { id: "layersNum", defaultVal: 1, min: 1, max: 10, step: 1 },
+      { id: "gamma", defaultVal: 0.99, min: 0, max: 1, step: 0.01 },
+      { id: "epsilon", defaultVal: 1.0, min: 0, max: 1, step: 0.01 },
+      { id: "epsilon_decay", defaultVal: 0.999, min: 0, max: 1, step: 0.001 },
+      { id: "epsilon_min", defaultVal: 0.1, min: 0, max: 1, step: 0.01 },
+      { id: "memory_size", defaultVal: 10000, min: 1000, max: 100000, step: 1000 },
+      { id: "target_update", defaultVal: 10, min: 1, max: 100, step: 1 },
+      { id: "state_size", defaultVal: 20, min: 5, max: 100, step: 1 }
+    ];
+    agentParams.forEach(param => {
+      const input = document.getElementById("input_" + param.id);
+      const sliderDiv = document.getElementById("slider_" + param.id);
+      const slider = new Nexus.Slider(sliderDiv, {
+        size: [120,20],
+        mode: 'absolute',
+        min: param.min,
+        max: param.max,
+        step: param.step,
+        value: param.defaultVal,
+        orientation: 'horizontal'
+      });
+      slider.on('change', val => { input.value = val; });
+      input.addEventListener('change', () => {
+        let newVal = parseFloat(input.value);
+        if(isNaN(newVal)) newVal = param.min;
+        if(newVal < param.min) newVal = param.min;
+        if(newVal > param.max) newVal = param.max;
+        slider.value = newVal;
+      });
+    });
+
+    /* ===== Parameter Units Section ===== */
+    // cooperationRate
+    const cooperationRateDial = new Nexus.Dial('#cooperationRateDial', {
+      size: [75,75],
+      interaction: 'radial',
+      mode: 'relative',
+      min: 0,
+      max: 5,
+      step: 0.01,
+      value: 0.5
+    });
+    const cooperationRateInput = document.getElementById('cooperationRateInput');
+    cooperationRateDial.on('change', val => { cooperationRateInput.value = val.toFixed(2); });
+    cooperationRateInput.addEventListener('change', () => {
+      let newVal = parseFloat(cooperationRateInput.value);
+      if(isNaN(newVal)) newVal = 0;
+      if(newVal < 0) newVal = 0;
+      if(newVal > 5) newVal = 5;
+      cooperationRateDial.value = newVal;
+    });
+    const cooperationRateToggle = new Nexus.Toggle('#cooperationRateToggle', { size: [40,20], state: false });
+    // individualIncome
+    const individualIncomeDial = new Nexus.Dial('#individualIncomeDial', {
+      size: [75,75],
+      interaction: 'radial',
+      mode: 'relative',
+      min: 0,
+      max: 10,
+      step: 0.01,
+      value: 2
+    });
+    const individualIncomeInput = document.getElementById('individualIncomeInput');
+    individualIncomeDial.on('change', val => { individualIncomeInput.value = val.toFixed(2); });
+    individualIncomeInput.addEventListener('change', () => {
+      let newVal = parseFloat(individualIncomeInput.value);
+      if(isNaN(newVal)) newVal = 0;
+      if(newVal < 0) newVal = 0;
+      if(newVal > 10) newVal = 10;
+      individualIncomeDial.value = newVal;
+    });
+    const individualIncomeToggle = new Nexus.Toggle('#individualIncomeToggle', { size: [40,20], state: false });
+    // giniCoefficient
+    const giniCoefficientDial = new Nexus.Dial('#giniCoefficientDial', {
+      size: [75,75],
+      interaction: 'radial',
+      mode: 'relative',
+      min: 0,
+      max: 1,
+      step: 0.01,
+      value: 0.50
+    });
+    const giniCoefficientInput = document.getElementById('giniCoefficientInput');
+    giniCoefficientDial.on('change', val => { giniCoefficientInput.value = val.toFixed(2); });
+    giniCoefficientInput.addEventListener('change', () => {
+      let newVal = parseFloat(giniCoefficientInput.value);
+      if(isNaN(newVal)) newVal = 0;
+      if(newVal < 0) newVal = 0;
+      if(newVal > 1) newVal = 1;
+      giniCoefficientDial.value = newVal;
+    });
+    const giniCoefficientToggle = new Nexus.Toggle('#giniCoefficientToggle', { size: [40,20], state: false });
+
+    /* ===== Classic Rule Section ===== */
+    const sliderParamsClassic = [
+      { name: 'random',     color: '#2A2A99', defaultVal: 4 },
+      { name: 'cheater',    color: '#0066ff', defaultVal: 2 },
+      { name: 'cooperator', color: '#ff9900', defaultVal: 1 },
+      { name: 'copycat',    color: '#990099', defaultVal: 5 },
+      { name: 'grudger',    color: '#ff0000', defaultVal: 7 },
+      { name: 'detective',  color: '#ffff00', defaultVal: 6 },
+      { name: 'ai',         color: '#999999', defaultVal: 9 },
+      { name: 'human',      color: '#009900', defaultVal: 4 }
+    ];
+    const sliderContainerClassic = document.getElementById('sliderContainer');
+    sliderParamsClassic.forEach((param, index) => {
+      const rowDiv = document.createElement('div');
+      rowDiv.className = 'slider-row';
+      const label = document.createElement('label');
+      label.textContent = param.name;
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = 0;
+      input.max = 25;
+      input.value = param.defaultVal;
+      const sliderDiv = document.createElement('div');
+      rowDiv.appendChild(label);
+      rowDiv.appendChild(input);
+      rowDiv.appendChild(sliderDiv);
+      sliderContainerClassic.appendChild(rowDiv);
+      const slider = new Nexus.Slider(sliderDiv, {
+        size: [120,15],
+        mode: 'absolute',
+        min: 0,
+        max: 25,
+        step: 1,
+        value: param.defaultVal,
+        orientation: 'horizontal'
+      });
+      slider.colorize("accent", param.color);
+      slider.on('change', val => { input.value = val; });
+      input.addEventListener('change', () => {
+        let newVal = parseInt(input.value, 10);
+        if(isNaN(newVal)) newVal = 0;
+        if(newVal < 0) newVal = 0;
+        if(newVal > 25) newVal = 25;
+        slider.value = newVal;
+      });
+    });
+    // Additional Controls in Classic Rule
+    const roundNumberSlider = new Nexus.Slider('#roundNumberSlider', {
+      size: [120,15],
+      mode: 'absolute',
+      min: 1,
+      max: 100,
+      step: 1,
+      value: 50,
+      orientation: 'horizontal'
+    });
+    const roundNumberInput = document.getElementById('roundNumberInput');
+    roundNumberSlider.on('change', val => { roundNumberInput.value = val; });
+    roundNumberInput.addEventListener('change', () => {
+      let newVal = parseInt(roundNumberInput.value, 10);
+      if(isNaN(newVal)) newVal = 1;
+      if(newVal < 1) newVal = 1;
+      if(newVal > 100) newVal = 100;
+      roundNumberSlider.value = newVal;
+    });
+    const reproductionNumberSlider = new Nexus.Slider('#reproductionNumberSlider', {
+      size: [120,15],
+      mode: 'absolute',
+      min: 0,
+      max: 25,
+      step: 1,
+      value: 5,
+      orientation: 'horizontal'
+    });
+    const reproductionNumberInput = document.getElementById('reproductionNumberInput');
+    reproductionNumberSlider.on('change', val => { reproductionNumberInput.value = val; });
+    reproductionNumberInput.addEventListener('change', () => {
+      let newVal = parseInt(reproductionNumberInput.value, 10);
+      if(isNaN(newVal)) newVal = 0;
+      if(newVal < 0) newVal = 0;
+      if(newVal > 25) newVal = 25;
+      reproductionNumberSlider.value = newVal;
+    });
+    const mistakePossibilityDial = new Nexus.Dial('#mistakePossibilityDial', {
+      size: [60,60],
+      interaction: 'radial',
+      mode: 'relative',
+      min: 0,
+      max: 1,
+      step: 0,
+      value: 0.05
+    });
+    const mistakePossibilityInput = document.getElementById('mistakePossibilityInput');
+    mistakePossibilityDial.on('change', val => { mistakePossibilityInput.value = val.toFixed(2); });
+    mistakePossibilityInput.addEventListener('change', () => {
+      let newVal = parseFloat(mistakePossibilityInput.value);
+      if(isNaN(newVal)) newVal = 0;
+      if(newVal < 0) newVal = 0;
+      if(newVal > 1) newVal = 1;
+      mistakePossibilityDial.value = newVal;
+    });
+    const fixedRuleToggle = new Nexus.Toggle('#fixedRuleToggle', { size: [40,20], state: false });
+
+    /* ===== Select Controls Section ===== */
+    const humanPlayerSelect = new Nexus.Select('#humanPlayerSelect', {
+      size: [100,30],
+      options: ['False','True']
+    });
+    humanPlayerSelect.value = 0;
+    const aiTypeSelect = new Nexus.Select('#aiTypeSelect', {
+      size: [100,30],
+      options: ['Q','DQN']
+    });
+    aiTypeSelect.value = 0;
+  </script>
+</body>
+</html>

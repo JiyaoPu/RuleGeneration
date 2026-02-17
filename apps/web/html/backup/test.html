@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Merged Dashboard – Combined</title>
+  <!-- jQuery 与 jQuery UI -->
+  <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/smoothness/jquery-ui.css">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script>
+    window.$ = window.jQuery = jQuery;
+  </script>
+  <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+  <!-- NexusUI -->
+  <script src="https://cdn.jsdelivr.net/npm/nexusui@latest/dist/NexusUI.js"></script>
+  <!-- Golden Layout CSS & JS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/golden-layout@1.5.9/src/css/goldenlayout-base.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/golden-layout@1.5.9/src/css/goldenlayout-light-theme.css">
+  <script src="https://cdn.jsdelivr.net/npm/golden-layout@1.5.9/dist/goldenlayout.min.js"></script>
+  <!-- Plotly -->
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: auto;
+      background: #eee;
+      font-family: sans-serif;
+    }
+    /* 单一 Golden Layout 容器 */
+    #layoutContainer {
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+    }
+    /* 保证 Golden Layout 内部面板允许滚动 */
+    .lm_item,
+    .lm_content {
+      overflow: auto !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="layoutContainer"></div>
+  
+  <script>
+    /*
+      配置说明：
+      外层采用 row 布局，将页面分为左右两部分：
+      - 左侧 stack：Input 页面（5个标签页：classicRule, selectDiv, paramUnits, designerEvaluatorDiv, agentTrainingDiv）
+      - 右侧 stack：Index 页面（3个标签页：ruleVisualization, strategyVisualization, evaluationVisualization）
+    */
+    var config = {
+      content: [{
+        type: 'row',
+        content: [
+          {
+            type: 'stack',
+            width: 50,
+            content: [
+              { type: 'component', componentName: 'classicRule', title: 'Rule Setting' },
+              { type: 'component', componentName: 'selectDiv', title: 'Strategy Setting' },
+              { type: 'component', componentName: 'paramUnits', title: 'Evaluation Expectation' },
+              { type: 'component', componentName: 'designerEvaluatorDiv', title: 'Designer & Evaluator' },
+              { type: 'component', componentName: 'agentTrainingDiv', title: 'Agent Training' }
+            ]
+          },
+          {
+            type: 'stack',
+            width: 50,
+            content: [
+              { type: 'component', componentName: 'ruleVisualization', title: 'Rule Visualization' },
+              { type: 'component', componentName: 'strategyVisualization', title: 'Strategy Visualization' },
+              { type: 'component', componentName: 'evaluationVisualization', title: 'Evaluation Visualization' }
+            ]
+          }
+        ]
+      }]
+    };
+    
+    var myLayout = new GoldenLayout(config, document.getElementById('layoutContainer'));
+    
+    /********** 左侧区域组件注册 **********/
+    // 1. classicRule（Rule Setting）
+    myLayout.registerComponent('classicRule', function(container, state) {
+      var html = `
+        <div id="classicRule">
+          <h2>Rule setting</h2>
+          <div class="slider-section">
+            <h3>Initial population</h3>
+            <div id="sliderContainer"></div>
+          </div>
+          <div class="trade-rules-section">
+            <h3>Trade Rules</h3>
+            <table>
+              <tbody>
+                <tr>
+                  <td>
+                    <span class="icon cheat">&#x2694;</span>
+                    <span class="icon cheat">&#x2694;</span>
+                  </td>
+                  <td>
+                    <span class="icon cheat">&#x2694;</span>
+                    <span class="icon cooperate">&#x1F91D;</span>
+                  </td>
+                  <td>
+                    <span class="icon cooperate">&#x1F91D;</span>
+                    <span class="icon cooperate">&#x1F91D;</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <input type="number" class="score-input" value="0">
+                    <input type="number" class="score-input" value="0">
+                  </td>
+                  <td>
+                    <input type="number" class="score-input" value="3">
+                    <input type="number" class="score-input" value="-1">
+                  </td>
+                  <td>
+                    <input type="number" class="score-input" value="2">
+                    <input type="number" class="score-input" value="2">
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="extra-section">
+            <h3>Additional Controls</h3>
+            <div class="control-row" id="roundNumberControl">
+              <label>Round Number:</label>
+              <input type="number" id="roundNumberInput" value="50" min="1" max="100">
+              <div id="roundNumberSlider"></div>
+            </div>
+            <div class="control-row" id="reproductionNumberControl">
+              <label>Reproduction Number:</label>
+              <input type="number" id="reproductionNumberInput" value="5" min="0" max="25">
+              <div id="reproductionNumberSlider"></div>
+            </div>
+            <div class="control-row" id="mistakePossibilityControl">
+              <label>Mistake Possibility:</label>
+              <input type="number" id="mistakePossibilityInput" value="0.05" min="0" max="1" step="0.01">
+              <div id="mistakePossibilityDial"></div>
+            </div>
+            <div class="control-row" id="fixedRuleControl">
+              <label>Fixed Rule:</label>
+              <div id="fixedRuleToggle"></div>
+            </div>
+          </div>
+        </div>
+      `;
+      container.getElement().html(html);
+      // 初始化滑块组（参考之前的实现代码）
+      var sliderContainer = container.getElement().find('#sliderContainer')[0];
+      var sliderParamsClassic = [
+        { name: 'random',     color: '#2A2A99', defaultVal: 4 },
+        { name: 'cheater',    color: '#0066ff', defaultVal: 2 },
+        { name: 'cooperator', color: '#ff9900', defaultVal: 1 },
+        { name: 'copycat',    color: '#990099', defaultVal: 5 },
+        { name: 'grudger',    color: '#ff0000', defaultVal: 7 },
+        { name: 'detective',  color: '#ffff00', defaultVal: 6 },
+        { name: 'ai',         color: '#999999', defaultVal: 9 },
+        { name: 'human',      color: '#009900', defaultVal: 4 }
+      ];
+      sliderParamsClassic.forEach(function(param) {
+        var rowDiv = document.createElement('div');
+        rowDiv.className = 'slider-row';
+        var label = document.createElement('label');
+        label.textContent = param.name;
+        var input = document.createElement('input');
+        input.type = 'number';
+        input.min = 0;
+        input.max = 25;
+        input.value = param.defaultVal;
+        var sliderDiv = document.createElement('div');
+        rowDiv.appendChild(label);
+        rowDiv.appendChild(input);
+        rowDiv.appendChild(sliderDiv);
+        sliderContainer.appendChild(rowDiv);
+        var slider = new Nexus.Slider(sliderDiv, {
+          size: [120,15],
+          mode: 'absolute',
+          min: 0,
+          max: 25,
+          step: 1,
+          value: param.defaultVal,
+          orientation: 'horizontal'
+        });
+        slider.colorize("accent", param.color);
+        slider.on('change', function(val) { input.value = val; });
+        input.addEventListener('change', function() {
+          var newVal = parseInt(input.value, 10);
+          if(isNaN(newVal)) newVal = 0;
+          if(newVal < 0) newVal = 0;
+          if(newVal > 25) newVal = 25;
+          slider.value = newVal;
+        });
+      });
+      // 初始化 Round Number 控件
+      var roundNumberSliderDiv = container.getElement().find('#roundNumberSlider')[0];
+      var roundNumberInput = container.getElement().find('#roundNumberInput')[0];
+      var roundNumberSlider = new Nexus.Slider(roundNumberSliderDiv, {
+        size: [120,15],
+        mode: 'absolute',
+        min: 1,
+        max: 100,
+        step: 1,
+        value: 50,
+        orientation: 'horizontal'
+      });
+      roundNumberSlider.on('change', function(val) { roundNumberInput.value = val; });
+      roundNumberInput.addEventListener('change', function() {
+        var newVal = parseInt(roundNumberInput.value, 10);
+        if(isNaN(newVal)) newVal = 1;
+        if(newVal < 1) newVal = 1;
+        if(newVal > 100) newVal = 100;
+        roundNumberSlider.value = newVal;
+      });
+      // 初始化 Reproduction Number 控件
+      var reproductionNumberSliderDiv = container.getElement().find('#reproductionNumberSlider')[0];
+      var reproductionNumberInput = container.getElement().find('#reproductionNumberInput')[0];
+      var reproductionNumberSlider = new Nexus.Slider(reproductionNumberSliderDiv, {
+        size: [120,15],
+        mode: 'absolute',
+        min: 0,
+        max: 25,
+        step: 1,
+        value: 5,
+        orientation: 'horizontal'
+      });
+      reproductionNumberSlider.on('change', function(val) { reproductionNumberInput.value = val; });
+      reproductionNumberInput.addEventListener('change', function() {
+        var newVal = parseInt(reproductionNumberInput.value, 10);
+        if(isNaN(newVal)) newVal = 0;
+        if(newVal < 0) newVal = 0;
+        if(newVal > 25) newVal = 25;
+        reproductionNumberSlider.value = newVal;
+      });
+      // 初始化 Mistake Possibility 控件
+      var mistakePossibilityDialDiv = container.getElement().find('#mistakePossibilityDial')[0];
+      var mistakePossibilityInput = container.getElement().find('#mistakePossibilityInput')[0];
+      var mistakePossibilityDial = new Nexus.Dial(mistakePossibilityDialDiv, {
+        size: [60,60],
+        interaction: 'radial',
+        mode: 'relative',
+        min: 0,
+        max: 1,
+        step: 0.01,
+        value: 0.05
+      });
+      mistakePossibilityDial.on('change', function(val) { mistakePossibilityInput.value = val.toFixed(2); });
+      mistakePossibilityInput.addEventListener('change', function() {
+        var newVal = parseFloat(mistakePossibilityInput.value);
+        if(isNaN(newVal)) newVal = 0;
+        if(newVal < 0) newVal = 0;
+        if(newVal > 1) newVal = 1;
+        mistakePossibilityDial.value = newVal;
+      });
+      // 初始化 Fixed Rule Toggle 控件
+      var fixedRuleToggleDiv = container.getElement().find('#fixedRuleToggle')[0];
+      var fixedRuleToggle = new Nexus.Toggle(fixedRuleToggleDiv, { size: [40,20], state: false });
+    });
+    
+    // 2. selectDiv（Strategy Setting）
+    myLayout.registerComponent('selectDiv', function(container, state) {
+      var html = `
+        <div id="selectDiv">
+          <h2>Strategy Setting</h2>
+          <div class="select-row">
+            <label>Human Player:</label>
+            <div id="humanPlayerSelect"></div>
+          </div>
+          <div class="select-row">
+            <label>AI Type:</label>
+            <div id="aiTypeSelect"></div>
+          </div>
+        </div>
+      `;
+      container.getElement().html(html);
+      var humanPlayerSelectDiv = container.getElement().find('#humanPlayerSelect')[0];
+      var aiTypeSelectDiv = container.getElement().find('#aiTypeSelect')[0];
+      var humanPlayerSelect = new Nexus.Select(humanPlayerSelectDiv, {
+        size: [100,30],
+        options: ['False','True']
+      });
+      humanPlayerSelect.value = 0;
+      var aiTypeSelect = new Nexus.Select(aiTypeSelectDiv, {
+        size: [100,30],
+        options: ['Q','DQN']
+      });
+      aiTypeSelect.value = 0;
+    });
+    
+    // 3. paramUnits（Evaluation Expectation）
+    myLayout.registerComponent('paramUnits', function(container, state) {
+      var html = `
+        <div id="paramUnits">
+          <h2>Evaluation Expectation</h2>
+          <div class="units-row">
+            <div class="param-unit" id="unit_cooperationRate">
+              <div class="dial" id="cooperationRateDial"></div>
+              <input type="number" id="cooperationRateInput" value="0.5" min="0" step="0.01">
+              <div class="toggle" id="cooperationRateToggle"></div>
+              <div class="param-name">Cooperation Rate</div>
+            </div>
+            <div class="param-unit" id="unit_individualIncome">
+              <div class="dial" id="individualIncomeDial"></div>
+              <input type="number" id="individualIncomeInput" value="2" min="0" step="0.01">
+              <div class="toggle" id="individualIncomeToggle"></div>
+              <div class="param-name">Individual Income</div>
+            </div>
+            <div class="param-unit" id="unit_giniCoefficient">
+              <div class="dial" id="giniCoefficientDial"></div>
+              <input type="number" id="giniCoefficientInput" value="0.50" min="0" max="1" step="0.01">
+              <div class="toggle" id="giniCoefficientToggle"></div>
+              <div class="param-name">Gini Coefficient</div>
+            </div>
+          </div>
+        </div>
+      `;
+      container.getElement().html(html);
+      var cooperationRateDialDiv = container.getElement().find('#cooperationRateDial')[0];
+      var cooperationRateInput = container.getElement().find('#cooperationRateInput')[0];
+      var cooperationRateDial = new Nexus.Dial(cooperationRateDialDiv, {
+        size: [75,75],
+        interaction: 'radial',
+        mode: 'relative',
+        min: 0,
+        max: 5,
+        step: 0.01,
+        value: 0.5
+      });
+      cooperationRateDial.on('change', function(val) { cooperationRateInput.value = val.toFixed(2); });
+      cooperationRateInput.addEventListener('change', function() {
+        var newVal = parseFloat(cooperationRateInput.value);
+        if(isNaN(newVal)) newVal = 0;
+        if(newVal < 0) newVal = 0;
+        if(newVal > 5) newVal = 5;
+        cooperationRateDial.value = newVal;
+      });
+      var cooperationRateToggleDiv = container.getElement().find('#cooperationRateToggle')[0];
+      var cooperationRateToggle = new Nexus.Toggle(cooperationRateToggleDiv, { size: [40,20], state: false });
+      
+      var individualIncomeDialDiv = container.getElement().find('#individualIncomeDial')[0];
+      var individualIncomeInput = container.getElement().find('#individualIncomeInput')[0];
+      var individualIncomeDial = new Nexus.Dial(individualIncomeDialDiv, {
+        size: [75,75],
+        interaction: 'radial',
+        mode: 'relative',
+        min: 0,
+        max: 10,
+        step: 0.01,
+        value: 2
+      });
+      individualIncomeDial.on('change', function(val) { individualIncomeInput.value = val.toFixed(2); });
+      individualIncomeInput.addEventListener('change', function() {
+        var newVal = parseFloat(individualIncomeInput.value);
+        if(isNaN(newVal)) newVal = 0;
+        if(newVal < 0) newVal = 0;
+        if(newVal > 10) newVal = 10;
+        individualIncomeDial.value = newVal;
+      });
+      var individualIncomeToggleDiv = container.getElement().find('#individualIncomeToggle')[0];
+      var individualIncomeToggle = new Nexus.Toggle(individualIncomeToggleDiv, { size: [40,20], state: false });
+      
+      var giniCoefficientDialDiv = container.getElement().find('#giniCoefficientDial')[0];
+      var giniCoefficientInput = container.getElement().find('#giniCoefficientInput')[0];
+      var giniCoefficientDial = new Nexus.Dial(giniCoefficientDialDiv, {
+        size: [75,75],
+        interaction: 'radial',
+        mode: 'relative',
+        min: 0,
+        max: 1,
+        step: 0.01,
+        value: 0.50
+      });
+      giniCoefficientDial.on('change', function(val) { giniCoefficientInput.value = val.toFixed(2); });
+      giniCoefficientInput.addEventListener('change', function() {
+        var newVal = parseFloat(giniCoefficientInput.value);
+        if(isNaN(newVal)) newVal = 0;
+        if(newVal < 0) newVal = 0;
+        if(newVal > 1) newVal = 1;
+        giniCoefficientDial.value = newVal;
+      });
+      var giniCoefficientToggleDiv = container.getElement().find('#giniCoefficientToggle')[0];
+      var giniCoefficientToggle = new Nexus.Toggle(giniCoefficientToggleDiv, { size: [40,20], state: false });
+    });
+    
+    // 4. designerEvaluatorDiv（Designer & Evaluator）
+    myLayout.registerComponent('designerEvaluatorDiv', function(container, state) {
+      var html = `
+        <div id="designerEvaluatorDiv">
+          <h2>Designer and Evaluator</h2>
+          <div class="deParam-row" id="row_batch_size">
+            <label>batch_size</label>
+            <input type="number" id="de_input_batch_size" value="1" min="1" max="100" step="1">
+            <div class="de-slider-container" id="de_slider_batch_size"></div>
+            <span class="de-param-desc">size of the batches</span>
+          </div>
+          <div class="deParam-row" id="row_lr">
+            <label>lr</label>
+            <input type="number" id="de_input_lr" value="0.01" min="0" max="1" step="0.001">
+            <div class="de-slider-container" id="de_slider_lr"></div>
+            <span class="de-param-desc">adam: learning rate</span>
+          </div>
+          <div class="deParam-row" id="row_b1">
+            <label>b1</label>
+            <input type="number" id="de_input_b1" value="0.5" min="0" max="1" step="0.01">
+            <div class="de-slider-container" id="de_slider_b1"></div>
+            <span class="de-param-desc">1st momentum decay</span>
+          </div>
+          <div class="deParam-row" id="row_b2">
+            <label>b2</label>
+            <input type="number" id="de_input_b2" value="0.999" min="0" max="1" step="0.001">
+            <div class="de-slider-container" id="de_slider_b2"></div>
+            <span class="de-param-desc">2nd momentum decay</span>
+          </div>
+          <div class="deParam-row" id="row_RuleDimension">
+            <label>RuleDimension</label>
+            <input type="number" id="de_input_RuleDimension" value="17" min="1" max="50" step="1">
+            <div class="de-slider-container" id="de_slider_RuleDimension"></div>
+            <span class="de-param-desc">trade rule dimension</span>
+          </div>
+          <div class="deParam-row" id="row_DE_train_episode">
+            <label>DE_train_episode</label>
+            <input type="number" id="de_input_DE_train_episode" value="1" min="1" max="100" step="1">
+            <div class="de-slider-container" id="de_slider_DE_train_episode"></div>
+            <span class="de-param-desc">training episodes</span>
+          </div>
+          <div class="deParam-row" id="row_DE_test_episode">
+            <label>DE_test_episode</label>
+            <input type="number" id="de_input_DE_test_episode" value="1" min="1" max="100" step="1">
+            <div class="de-slider-container" id="de_slider_DE_test_episode"></div>
+            <span class="de-param-desc">testing episodes</span>
+          </div>
+        </div>
+      `;
+      container.getElement().html(html);
+      var deParams = [
+        { id: "batch_size", defaultVal: 1, min: 1, max: 100, step: 1 },
+        { id: "lr", defaultVal: 0.01, min: 0, max: 1, step: 0.001 },
+        { id: "b1", defaultVal: 0.5, min: 0, max: 1, step: 0.01 },
+        { id: "b2", defaultVal: 0.999, min: 0, max: 1, step: 0.001 },
+        { id: "RuleDimension", defaultVal: 17, min: 1, max: 50, step: 1 },
+        { id: "DE_train_episode", defaultVal: 1, min: 1, max: 100, step: 1 },
+        { id: "DE_test_episode", defaultVal: 1, min: 1, max: 100, step: 1 }
+      ];
+      deParams.forEach(function(param) {
+        var input = container.getElement().find("#de_input_" + param.id)[0];
+        var sliderDiv = container.getElement().find("#de_slider_" + param.id)[0];
+        var slider = new Nexus.Slider(sliderDiv, {
+          size: [120,20],
+          mode: 'absolute',
+          min: param.min,
+          max: param.max,
+          step: param.step,
+          value: param.defaultVal,
+          orientation: 'horizontal'
+        });
+        slider.on('change', function(val) { input.value = val; });
+        input.addEventListener('change', function() {
+          var newVal = parseFloat(input.value);
+          if(isNaN(newVal)) newVal = param.min;
+          if(newVal < param.min) newVal = param.min;
+          if(newVal > param.max) newVal = param.max;
+          slider.value = newVal;
+        });
+      });
+    });
+    
+    // 5. agentTrainingDiv（Agent Training）
+    myLayout.registerComponent('agentTrainingDiv', function(container, state) {
+      var html = `
+        <div id="agentTrainingDiv">
+          <h2>Agent Training</h2>
+          <div class="agentParam-row" id="row_agent_train_epoch">
+            <label>agent_train_epoch</label>
+            <input type="number" id="input_agent_train_epoch" value="10000" min="1000" max="100000" step="1000">
+            <div class="agent-slider-container" id="slider_agent_train_epoch"></div>
+            <span class="agent-param-desc"># of epochs</span>
+          </div>
+          <div class="agentParam-row" id="row_evaluationSize">
+            <label>evaluationSize</label>
+            <input type="number" id="input_evaluationSize" value="1" min="1" max="10" step="1">
+            <div class="agent-slider-container" id="slider_evaluationSize"></div>
+            <span class="agent-param-desc">eval metrics size</span>
+          </div>
+          <div class="agentParam-row" id="row_layersNum">
+            <label>layersNum</label>
+            <input type="number" id="input_layersNum" value="1" min="1" max="10" step="1">
+            <div class="agent-slider-container" id="slider_layersNum"></div>
+            <span class="agent-param-desc">generator layers</span>
+          </div>
+          <div class="agentParam-row" id="row_gamma">
+            <label>gamma</label>
+            <input type="number" id="input_gamma" value="0.99" min="0" max="1" step="0.01">
+            <div class="agent-slider-container" id="slider_gamma"></div>
+            <span class="agent-param-desc">discount factor</span>
+          </div>
+          <div class="agentParam-row" id="row_epsilon">
+            <label>epsilon</label>
+            <input type="number" id="input_epsilon" value="1.0" min="0" max="1" step="0.01">
+            <div class="agent-slider-container" id="slider_epsilon"></div>
+            <span class="agent-param-desc">initial epsilon</span>
+          </div>
+          <div class="agentParam-row" id="row_epsilon_decay">
+            <label>epsilon_decay</label>
+            <input type="number" id="input_epsilon_decay" value="0.999" min="0" max="1" step="0.001">
+            <div class="agent-slider-container" id="slider_epsilon_decay"></div>
+            <span class="agent-param-desc">decay rate</span>
+          </div>
+          <div class="agentParam-row" id="row_epsilon_min">
+            <label>epsilon_min</label>
+            <input type="number" id="input_epsilon_min" value="0.1" min="0" max="1" step="0.01">
+            <div class="agent-slider-container" id="slider_epsilon_min"></div>
+            <span class="agent-param-desc">min epsilon</span>
+          </div>
+          <div class="agentParam-row" id="row_memory_size">
+            <label>memory_size</label>
+            <input type="number" id="input_memory_size" value="10000" min="1000" max="100000" step="1000">
+            <div class="agent-slider-container" id="slider_memory_size"></div>
+            <span class="agent-param-desc">experience replay</span>
+          </div>
+          <div class="agentParam-row" id="row_target_update">
+            <label>target_update</label>
+            <input type="number" id="input_target_update" value="10" min="1" max="100" step="1">
+            <div class="agent-slider-container" id="slider_target_update"></div>
+            <span class="agent-param-desc">target update freq</span>
+          </div>
+          <div class="agentParam-row" id="row_state_size">
+            <label>state_size</label>
+            <input type="number" id="input_state_size" value="20" min="5" max="100" step="1">
+            <div class="agent-slider-container" id="slider_state_size"></div>
+            <span class="agent-param-desc">state vector size</span>
+          </div>
+        </div>
+      `;
+      container.getElement().html(html);
+      var agentParams = [
+        { id: "agent_train_epoch", defaultVal: 10000, min: 1000, max: 100000, step: 1000 },
+        { id: "evaluationSize", defaultVal: 1, min: 1, max: 10, step: 1 },
+        { id: "layersNum", defaultVal: 1, min: 1, max: 10, step: 1 },
+        { id: "gamma", defaultVal: 0.99, min: 0, max: 1, step: 0.01 },
+        { id: "epsilon", defaultVal: 1.0, min: 0, max: 1, step: 0.01 },
+        { id: "epsilon_decay", defaultVal: 0.999, min: 0, max: 1, step: 0.001 },
+        { id: "epsilon_min", defaultVal: 0.1, min: 0, max: 1, step: 0.01 },
+        { id: "memory_size", defaultVal: 10000, min: 1000, max: 100000, step: 1000 },
+        { id: "target_update", defaultVal: 10, min: 1, max: 100, step: 1 },
+        { id: "state_size", defaultVal: 20, min: 5, max: 100, step: 1 }
+      ];
+      agentParams.forEach(function(param) {
+        var input = container.getElement().find("#input_" + param.id)[0];
+        var sliderDiv = container.getElement().find("#slider_" + param.id)[0];
+        var slider = new Nexus.Slider(sliderDiv, {
+          size: [120,20],
+          mode: 'absolute',
+          min: param.min,
+          max: param.max,
+          step: param.step,
+          value: param.defaultVal,
+          orientation: 'horizontal'
+        });
+        slider.on('change', function(val) { input.value = val; });
+        input.addEventListener('change', function() {
+          var newVal = parseFloat(input.value);
+          if(isNaN(newVal)) newVal = param.min;
+          if(newVal < param.min) newVal = param.min;
+          if(newVal > param.max) newVal = param.max;
+          slider.value = newVal;
+        });
+      });
+    });
+    
+    /********** 右侧区域组件注册 **********/
+    // 6. ruleVisualization（Rule Visualization）
+    myLayout.registerComponent('ruleVisualization', function(container, state) {
+      var html = `
+        <div id="ruleVisualizationContent">
+          <h3 class="section-title">Rule Visualization</h3>
+          <div class="row">
+            <div class="col-md-6">
+              <div id="pieChart" style="width:100%; height:300px;"></div>
+            </div>
+            <div class="col-md-6">
+              <div id="lineChartInitialPopulation" style="width:100%; height:300px;"></div>
+            </div>
+          </div>
+          <div class="row" style="margin-top:20px;">
+            <div class="col-md-6">
+              <div id="tradeRuleChart" style="width:100%; height:300px;"></div>
+            </div>
+            <div class="col-md-6">
+              <div id="lineChartCombined" style="width:100%; height:300px;"></div>
+            </div>
+          </div>
+        </div>
+      `;
+      container.getElement().html(html);
+      var pieDiv = container.getElement().find('#pieChart')[0];
+      var pieData = [{
+        values: [10,15,20,12,8,18,14,9],
+        labels: ['Role1','Role2','Role3','Role4','Role5','Role6','Role7','Role8'],
+        type: 'pie'
+      }];
+      Plotly.newPlot(pieDiv, pieData, {title: 'Initial Population Distribution'});
+      var lineChartDiv = container.getElement().find('#lineChartInitialPopulation')[0];
+      var timePoints = [0,1,2,3,4,5,6,7,8,9];
+      var tracesInitial = [];
+      var roles = ['Role1','Role2','Role3','Role4','Role5','Role6','Role7','Role8'];
+      roles.forEach(function(role) {
+        var values = timePoints.map(function(t){ return Math.round(Math.random()*50+10); });
+        tracesInitial.push({ x: timePoints, y: values, mode: 'lines+markers', name: role });
+      });
+      var layoutInitial = { title: 'Initial Population Over Time', xaxis: {title: 'Time'}, yaxis: {title: 'Population Count'} };
+      Plotly.newPlot(lineChartDiv, tracesInitial, layoutInitial);
+      var tradeRuleDiv = container.getElement().find('#tradeRuleChart')[0];
+      var traceAPlayer = { x: timePoints, y: [0,0,0,0,0,0,0,0,0,0], mode: 'lines+markers', name: 'Rule A (Player)' };
+      var traceAOpponent = { x: timePoints, y: [0,0,0,0,0,0,0,0,0,0], mode: 'lines+markers', name: 'Rule A (Opponent)' };
+      var traceBPlayer = { x: timePoints, y: [3,3,3,3,3,3,3,3,3,3], mode: 'lines+markers', name: 'Rule B (Player)' };
+      var traceBOpponent = { x: timePoints, y: [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1], mode: 'lines+markers', name: 'Rule B (Opponent)' };
+      var traceCPlayer = { x: timePoints, y: [2,2,2,2,2,2,2,2,2,2], mode: 'lines+markers', name: 'Rule C (Player)' };
+      var traceCOpponent = { x: timePoints, y: [2,2,2,2,2,2,2,2,2,2], mode: 'lines+markers', name: 'Rule C (Opponent)' };
+      var layoutTrade = { title: 'Trade Rule Changes', xaxis: { title: 'Time' }, yaxis: { title: 'Trade Rule Value' } };
+      Plotly.newPlot(tradeRuleDiv, [traceAPlayer, traceAOpponent, traceBPlayer, traceBOpponent, traceCPlayer, traceCOpponent], layoutTrade);
+      var lineChartCombinedDiv = container.getElement().find('#lineChartCombined')[0];
+      var roundNumbers = timePoints.map(t => Math.round(Math.random()*20));
+      var reproductionNumbers = timePoints.map(t => Math.round(Math.random()*20));
+      var mistakePossibilities = timePoints.map(t => Math.random().toFixed(2));
+      var traceRound = { x: timePoints, y: roundNumbers, mode: 'lines+markers', name: 'Round Number', line: {color: 'blue'}, yaxis: 'y1' };
+      var traceRepro = { x: timePoints, y: reproductionNumbers, mode: 'lines+markers', name: 'Reproduction Number', line: {color: 'green'}, yaxis: 'y1' };
+      var traceMistake = { x: timePoints, y: mistakePossibilities, mode: 'lines+markers', name: 'Mistake Possibility', line: {color: 'red'}, yaxis: 'y2' };
+      var layoutCombined = { title: 'Round, Reproduction & Mistake During Training', xaxis: { title: 'Time' }, yaxis: { title: 'Count (0-20)', range: [0,20] }, yaxis2: { title: 'Mistake Possibility (0-1)', overlaying: 'y', side: 'right', range: [0,1] } };
+      Plotly.newPlot(lineChartCombinedDiv, [traceRound, traceRepro, traceMistake], layoutCombined);
+      container.on('resize', function() {
+        Plotly.Plots.resize(pieDiv);
+        Plotly.Plots.resize(lineChartDiv);
+        Plotly.Plots.resize(tradeRuleDiv);
+        Plotly.Plots.resize(lineChartCombinedDiv);
+      });
+    });
+    
+    // 7. strategyVisualization（Strategy Visualization）
+    myLayout.registerComponent('strategyVisualization', function(container, state) {
+      var html = `
+        <div id="strategyVisualizationContent">
+          <h3 class="section-title">Strategy Visualization</h3>
+          <p>This section displays visualizations related to strategies, such as strategy trends and agent decision paths.</p>
+          <div class="row">
+            <div class="col-md-4" style="margin-bottom:20px;">
+              <img src="../image/NPC_strategies.png" alt="NPC Strategy" style="width:100%; height:auto;">
+            </div>
+            <div class="col-md-4" style="margin-bottom:20px;">
+              <img src="../image/human_strategy.png" alt="Human Strategy" style="width:100%; height:auto;">
+            </div>
+            <div class="col-md-4" style="margin-bottom:20px;">
+              <img src="../image/AI_strategies.png" alt="AI Strategy" style="width:100%; height:auto;">
+            </div>
+          </div>
+          <div class="row" style="margin-top:20px;">
+            <div class="col-md-12">
+              <div id="strategyLineChart" style="width:100%; height:300px;"></div>
+            </div>
+          </div>
+          <div class="row" style="margin-top:20px; text-align:center;">
+            <div class="col-md-12">
+              <img id="qTableImage" src="../image/qtable.png" alt="Q Table Visualization" style="width:100%; height:auto;">
+            </div>
+          </div>
+        </div>
+      `;
+      container.getElement().html(html);
+      var timePoints = [0,1,2,3,4,5,6,7,8,9];
+      var traceStrategy = { x: timePoints, y: timePoints.map(t => Math.round(Math.random()*100)), mode: 'lines+markers', name: 'Q Learning Performance', line: {color: 'blue'} };
+      var strategyLineChartDiv = container.getElement().find('#strategyLineChart')[0];
+      var layoutStrategy = { title: 'Q Learning Training Progress', xaxis: {title: 'Epoch'}, yaxis: {title: 'Performance'} };
+      Plotly.newPlot(strategyLineChartDiv, [traceStrategy], layoutStrategy);
+      container.on('resize', function() {
+        Plotly.Plots.resize(strategyLineChartDiv);
+      });
+    });
+    
+    // 8. evaluationVisualization（Evaluation Visualization）
+    myLayout.registerComponent('evaluationVisualization', function(container, state) {
+      var html = `
+        <div id="evaluationVisualizationContent">
+          <h3 class="section-title">Evaluation Visualization</h3>
+          <p>This section displays evaluation metrics, such as cooperation rate, individual income, and Gini coefficient.</p>
+          <div class="row" style="margin-bottom:20px;">
+            <div class="col-md-6">
+              <h4>Cooperation Rate (Pie)</h4>
+              <div id="cooperationRatePie" style="width:100%; height:300px;"></div>
+            </div>
+            <div class="col-md-6">
+              <h4>Cooperation Rate (Line)</h4>
+              <div id="cooperationRateLine" style="width:100%; height:300px;"></div>
+            </div>
+          </div>
+          <div class="row" style="margin-bottom:20px;">
+            <div class="col-md-6">
+              <h4>Individual Income (Histogram)</h4>
+              <div id="individualIncomeHistogram" style="width:100%; height:300px;"></div>
+            </div>
+            <div class="col-md-6">
+              <h4>Individual Income (Line)</h4>
+              <div id="individualIncomeLine" style="width:100%; height:300px;"></div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-6">
+              <h4>Gini Coefficient (Radar)</h4>
+              <div id="giniCoefficientRadar" style="width:100%; height:300px;"></div>
+            </div>
+            <div class="col-md-6">
+              <h4>Gini Coefficient (Line)</h4>
+              <div id="giniCoefficientLine" style="width:100%; height:300px;"></div>
+            </div>
+          </div>
+        </div>
+      `;
+      container.getElement().html(html);
+      var roles = ['Role1','Role2','Role3','Role4','Role5','Role6','Role7','Role8'];
+      var timePoints = [0,1,2,3,4,5,6,7,8,9];
+      var cooperationRatePieDiv = container.getElement().find('#cooperationRatePie')[0];
+      var finalCoopRates = [0.8,0.6,0.7,0.9,0.5,0.85,0.65,0.75];
+      var pieDataEval = [{ values: finalCoopRates, labels: roles, type: 'pie' }];
+      Plotly.newPlot(cooperationRatePieDiv, pieDataEval, { title: 'Final Cooperation Rate' });
+      var coopTraces = [];
+      roles.forEach(function(role) {
+        var values = timePoints.map(function(t){ return (Math.random()).toFixed(2); });
+        coopTraces.push({ x: timePoints, y: values, mode: 'lines+markers', name: role });
+      });
+      var cooperationRateLineDiv = container.getElement().find('#cooperationRateLine')[0];
+      var layoutCoopLine = { title: 'Cooperation Rate Evolution', xaxis: { title: 'Epoch' }, yaxis: { title: 'Cooperation Rate', range: [0,1] } };
+      Plotly.newPlot(cooperationRateLineDiv, coopTraces, layoutCoopLine);
+      var individualIncomeHistogramDiv = container.getElement().find('#individualIncomeHistogram')[0];
+      var finalIncome = [200,180,220,210,190,230,205,215];
+      var incomeBarData = [{ x: roles, y: finalIncome, type: 'bar' }];
+      Plotly.newPlot(individualIncomeHistogramDiv, incomeBarData, { title: 'Final Individual Income', xaxis: { title: 'Role' }, yaxis: { title: 'Income' } });
+      var individualIncomeLineDiv = container.getElement().find('#individualIncomeLine')[0];
+      var incomeTraces = [];
+      roles.forEach(function(role) {
+        var values = timePoints.map(function(t){ return Math.round(Math.random()*50+180); });
+        incomeTraces.push({ x: timePoints, y: values, mode: 'lines+markers', name: role });
+      });
+      var layoutIncomeLine = { title: 'Individual Income Evolution', xaxis: { title: 'Epoch' }, yaxis: { title: 'Income' } };
+      Plotly.newPlot(individualIncomeLineDiv, incomeTraces, layoutIncomeLine);
+      var giniCoefficientRadarDiv = container.getElement().find('#giniCoefficientRadar')[0];
+      var finalGini = [0.3,0.4,0.35,0.45,0.32,0.38,0.41,0.37];
+      var radarData = [{ type: 'scatterpolar', r: finalGini, theta: roles, fill: 'toself', name: 'Final Gini Coefficient' }];
+      var layoutRadar = { polar: { radialaxis: { visible: true, range: [0,1] } }, showlegend: false, title: 'Final Gini Coefficient' };
+      Plotly.newPlot(giniCoefficientRadarDiv, radarData, layoutRadar);
+      var giniCoefficientLineDiv = container.getElement().find('#giniCoefficientLine')[0];
+      var giniTraces = [];
+      roles.forEach(function(role) {
+        var values = timePoints.map(function(t){ return (Math.random()*0.5+0.3).toFixed(2); });
+        giniTraces.push({ x: timePoints, y: values, mode: 'lines+markers', name: role });
+      });
+      var layoutGiniLine = { title: 'Gini Coefficient Evolution', xaxis: { title: 'Epoch' }, yaxis: { title: 'Gini Coefficient', range: [0,1] } };
+      Plotly.newPlot(giniCoefficientLineDiv, giniTraces, layoutGiniLine);
+      container.on('resize', function() {
+        Plotly.Plots.resize(cooperationRatePieDiv);
+        Plotly.Plots.resize(cooperationRateLineDiv);
+        Plotly.Plots.resize(individualIncomeHistogramDiv);
+        Plotly.Plots.resize(individualIncomeLineDiv);
+        Plotly.Plots.resize(giniCoefficientRadarDiv);
+        Plotly.Plots.resize(giniCoefficientLineDiv);
+      });
+    });
+    
+    myLayout.init();
+  </script>
+</body>
+</html>

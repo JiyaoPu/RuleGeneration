@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Rule Generation and Evaluation Visualization System</title>
+  <!-- Bootstrap CSS -->
+  <link rel="stylesheet" href="../css/bootstrap.min.css">
+  <!-- FontAwesome CSS -->
+  <link rel="stylesheet" href="../css/fontawesome.min.css">
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="../css/style.css">
+  <!-- MathJax (if needed for mathematical formulas) -->
+  <script src="../js/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+  
+  <!-- Golden Layout CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/golden-layout@1.5.9/src/css/goldenlayout-base.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/golden-layout@1.5.9/src/css/goldenlayout-light-theme.css">
+  
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: auto;
+      background: #eee;
+      font-family: sans-serif;
+    }
+    #layoutContainer {
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+    }
+    /* 强制 Golden Layout 面板显示滚动条 */
+    .lm_item,
+    .lm_content {
+      overflow: auto !important;
+    }
+  </style>
+  
+  <!-- jQuery（确保在 Golden Layout 之前加载） -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script>
+    window.$ = window.jQuery = jQuery;
+  </script>
+  
+  <!-- Golden Layout JS -->
+  <script src="https://cdn.jsdelivr.net/npm/golden-layout@1.5.9/dist/goldenlayout.min.js"></script>
+  <!-- Plotly JS -->
+  <script src="../js/plotly-latest.min.js"></script>
+</head>
+<body>
+  <!-- Golden Layout 主容器 -->
+  <div id="layoutContainer"></div>
+  
+  <script>
+    // 修改配置：将所有组件放入一个 stack 内显示为标签页
+    var config = {
+      content: [{
+        type: 'stack',
+        content: [
+          {
+            type: 'component',
+            componentName: 'ruleVisualization',
+            title: 'Rule Visualization'
+          },
+          {
+            type: 'component',
+            componentName: 'strategyVisualization',
+            title: 'Strategy Visualization'
+          },
+          {
+            type: 'component',
+            componentName: 'evaluationVisualization',
+            title: 'Evaluation Visualization'
+          }
+        ]
+      }]
+    };
+
+    var myLayout = new GoldenLayout(config, document.getElementById('layoutContainer'));
+
+    // ---------------------------
+    // 注册 Rule Visualization 组件
+    // ---------------------------
+    myLayout.registerComponent('ruleVisualization', function(container, state) {
+      var html = `
+        <div id="ruleVisualizationContent">
+          <h3 class="section-title">Rule Visualization</h3>
+          <div class="row">
+            <div class="col-md-6">
+              <div id="pieChart" style="width:100%; height:300px;"></div>
+            </div>
+            <div class="col-md-6">
+              <div id="lineChartInitialPopulation" style="width:100%; height:300px;"></div>
+            </div>
+          </div>
+          <div class="row" style="margin-top:20px;">
+            <div class="col-md-6">
+              <div id="tradeRuleChart" style="width:100%; height:300px;"></div>
+            </div>
+            <div class="col-md-6">
+              <div id="lineChartCombined" style="width:100%; height:300px;"></div>
+            </div>
+          </div>
+        </div>
+      `;
+      container.getElement().html(html);
+      // 使用当前组件内 DOM 定位元素
+      var pieDiv = container.getElement().find('#pieChart')[0];
+      var pieData = [{
+        values: [10, 15, 20, 12, 8, 18, 14, 9],
+        labels: ['Role1','Role2','Role3','Role4','Role5','Role6','Role7','Role8'],
+        type: 'pie'
+      }];
+      Plotly.newPlot(pieDiv, pieData, {title: 'Initial Population Distribution'});
+
+      var lineChartDiv = container.getElement().find('#lineChartInitialPopulation')[0];
+      var timePoints = [0,1,2,3,4,5,6,7,8,9];
+      var tracesInitial = [];
+      var roles = ['Role1','Role2','Role3','Role4','Role5','Role6','Role7','Role8'];
+      roles.forEach(function(role) {
+        var values = timePoints.map(function(t){ return Math.round(Math.random()*50 + 10); });
+        tracesInitial.push({
+          x: timePoints,
+          y: values,
+          mode: 'lines+markers',
+          name: role
+        });
+      });
+      var layoutInitial = {
+        title: 'Initial Population Over Time',
+        xaxis: {title: 'Time'},
+        yaxis: {title: 'Population Count'}
+      };
+      Plotly.newPlot(lineChartDiv, tracesInitial, layoutInitial);
+
+      var tradeRuleDiv = container.getElement().find('#tradeRuleChart')[0];
+      var traceAPlayer = { x: timePoints, y: [0,0,0,0,0,0,0,0,0,0], mode: 'lines+markers', name: 'Rule A (Player)' };
+      var traceAOpponent = { x: timePoints, y: [0,0,0,0,0,0,0,0,0,0], mode: 'lines+markers', name: 'Rule A (Opponent)' };
+      var traceBPlayer = { x: timePoints, y: [3,3,3,3,3,3,3,3,3,3], mode: 'lines+markers', name: 'Rule B (Player)' };
+      var traceBOpponent = { x: timePoints, y: [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1], mode: 'lines+markers', name: 'Rule B (Opponent)' };
+      var traceCPlayer = { x: timePoints, y: [2,2,2,2,2,2,2,2,2,2], mode: 'lines+markers', name: 'Rule C (Player)' };
+      var traceCOpponent = { x: timePoints, y: [2,2,2,2,2,2,2,2,2,2], mode: 'lines+markers', name: 'Rule C (Opponent)' };
+      var layoutTrade = { title: 'Trade Rule Changes', xaxis: { title: 'Time' }, yaxis: { title: 'Trade Rule Value' } };
+      Plotly.newPlot(tradeRuleDiv, [traceAPlayer, traceAOpponent, traceBPlayer, traceBOpponent, traceCPlayer, traceCOpponent], layoutTrade);
+
+      var lineChartCombinedDiv = container.getElement().find('#lineChartCombined')[0];
+      var roundNumbers = timePoints.map(t => Math.round(Math.random()*20));
+      var reproductionNumbers = timePoints.map(t => Math.round(Math.random()*20));
+      var mistakePossibilities = timePoints.map(t => Math.random().toFixed(2));
+      var traceRound = { x: timePoints, y: roundNumbers, mode: 'lines+markers', name: 'Round Number', line: {color: 'blue'}, yaxis: 'y1' };
+      var traceRepro = { x: timePoints, y: reproductionNumbers, mode: 'lines+markers', name: 'Reproduction Number', line: {color: 'green'}, yaxis: 'y1' };
+      var traceMistake = { x: timePoints, y: mistakePossibilities, mode: 'lines+markers', name: 'Mistake Possibility', line: {color: 'red'}, yaxis: 'y2' };
+      var layoutCombined = {
+        title: 'Round, Reproduction & Mistake During Training',
+        xaxis: { title: 'Time' },
+        yaxis: { title: 'Count (0-20)', range: [0,20] },
+        yaxis2: { title: 'Mistake Possibility (0-1)', overlaying: 'y', side: 'right', range: [0,1] }
+      };
+      Plotly.newPlot(lineChartCombinedDiv, [traceRound, traceRepro, traceMistake], layoutCombined);
+
+      container.on('resize', function() {
+        Plotly.Plots.resize(pieDiv);
+        Plotly.Plots.resize(lineChartDiv);
+        Plotly.Plots.resize(tradeRuleDiv);
+        Plotly.Plots.resize(lineChartCombinedDiv);
+      });
+    });
+
+    // ---------------------------
+    // 注册 Strategy Visualization 组件
+    // ---------------------------
+    myLayout.registerComponent('strategyVisualization', function(container, state) {
+      var html = `
+        <div id="strategyVisualizationContent">
+          <h3 class="section-title">Strategy Visualization</h3>
+          <p>This section displays visualizations related to strategies, such as strategy trends and agent decision paths.</p>
+          <div class="row">
+            <div class="col-md-4" style="margin-bottom:20px;">
+              <img src="../image/NPC_strategies.png" alt="NPC Strategy" style="width:100%; height:auto;">
+            </div>
+            <div class="col-md-4" style="margin-bottom:20px;">
+              <img src="../image/human_strategy.png" alt="Human Strategy" style="width:100%; height:auto;">
+            </div>
+            <div class="col-md-4" style="margin-bottom:20px;">
+              <img src="../image/AI_strategies.png" alt="AI Strategy" style="width:100%; height:auto;">
+            </div>
+          </div>
+          <div class="row" style="margin-top:20px;">
+            <div class="col-md-12">
+              <div id="strategyLineChart" style="width:100%; height:300px;"></div>
+            </div>
+          </div>
+          <div class="row" style="margin-top:20px; text-align:center;">
+            <div class="col-md-12">
+              <img id="qTableImage" src="../image/qtable.png" alt="Q Table Visualization" style="width:100%; height:auto;">
+            </div>
+          </div>
+        </div>
+      `;
+      container.getElement().html(html);
+      var timePoints = [0,1,2,3,4,5,6,7,8,9];
+      var traceStrategy = {
+        x: timePoints,
+        y: timePoints.map(t => Math.round(Math.random()*100)),
+        mode: 'lines+markers',
+        name: 'Q Learning Performance',
+        line: {color: 'blue'}
+      };
+      var strategyLineChartDiv = container.getElement().find('#strategyLineChart')[0];
+      var layoutStrategy = {
+        title: 'Q Learning Training Progress',
+        xaxis: {title: 'Epoch'},
+        yaxis: {title: 'Performance'}
+      };
+      Plotly.newPlot(strategyLineChartDiv, [traceStrategy], layoutStrategy);
+      container.on('resize', function() {
+        Plotly.Plots.resize(strategyLineChartDiv);
+      });
+    });
+
+    // ---------------------------
+    // 注册 Evaluation Visualization 组件
+    // ---------------------------
+    myLayout.registerComponent('evaluationVisualization', function(container, state) {
+      var html = `
+        <div id="evaluationVisualizationContent">
+          <h3 class="section-title">Evaluation Visualization</h3>
+          <p>This section displays evaluation metrics, such as cooperation rate, individual income, and Gini coefficient.</p>
+          <div class="row" style="margin-bottom:20px;">
+            <div class="col-md-6">
+              <h4>Cooperation Rate (Pie)</h4>
+              <div id="cooperationRatePie" style="width:100%; height:300px;"></div>
+            </div>
+            <div class="col-md-6">
+              <h4>Cooperation Rate (Line)</h4>
+              <div id="cooperationRateLine" style="width:100%; height:300px;"></div>
+            </div>
+          </div>
+          <div class="row" style="margin-bottom:20px;">
+            <div class="col-md-6">
+              <h4>Individual Income (Histogram)</h4>
+              <div id="individualIncomeHistogram" style="width:100%; height:300px;"></div>
+            </div>
+            <div class="col-md-6">
+              <h4>Individual Income (Line)</h4>
+              <div id="individualIncomeLine" style="width:100%; height:300px;"></div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-6">
+              <h4>Gini Coefficient (Radar)</h4>
+              <div id="giniCoefficientRadar" style="width:100%; height:300px;"></div>
+            </div>
+            <div class="col-md-6">
+              <h4>Gini Coefficient (Line)</h4>
+              <div id="giniCoefficientLine" style="width:100%; height:300px;"></div>
+            </div>
+          </div>
+        </div>
+      `;
+      container.getElement().html(html);
+      var roles = ['Role1','Role2','Role3','Role4','Role5','Role6','Role7','Role8'];
+      var timePoints = [0,1,2,3,4,5,6,7,8,9];
+      var cooperationRatePieDiv = container.getElement().find('#cooperationRatePie')[0];
+      var finalCoopRates = [0.8, 0.6, 0.7, 0.9, 0.5, 0.85, 0.65, 0.75];
+      var pieDataEval = [{
+        values: finalCoopRates,
+        labels: roles,
+        type: 'pie'
+      }];
+      Plotly.newPlot(cooperationRatePieDiv, pieDataEval, {title: 'Final Cooperation Rate'});
+      var coopTraces = [];
+      roles.forEach(function(role) {
+        var values = timePoints.map(function(t){ return (Math.random()).toFixed(2); });
+        coopTraces.push({
+          x: timePoints,
+          y: values,
+          mode: 'lines+markers',
+          name: role
+        });
+      });
+      var cooperationRateLineDiv = container.getElement().find('#cooperationRateLine')[0];
+      var layoutCoopLine = {
+        title: 'Cooperation Rate Evolution',
+        xaxis: { title: 'Epoch' },
+        yaxis: { title: 'Cooperation Rate', range: [0,1] }
+      };
+      Plotly.newPlot(cooperationRateLineDiv, coopTraces, layoutCoopLine);
+      var individualIncomeHistogramDiv = container.getElement().find('#individualIncomeHistogram')[0];
+      var finalIncome = [200, 180, 220, 210, 190, 230, 205, 215];
+      var incomeBarData = [{
+        x: roles,
+        y: finalIncome,
+        type: 'bar'
+      }];
+      Plotly.newPlot(individualIncomeHistogramDiv, incomeBarData, {title: 'Final Individual Income', xaxis: {title: 'Role'}, yaxis: {title: 'Income'}});
+      var individualIncomeLineDiv = container.getElement().find('#individualIncomeLine')[0];
+      var incomeTraces = [];
+      roles.forEach(function(role) {
+        var values = timePoints.map(function(t){ return Math.round(Math.random()*50 + 180); });
+        incomeTraces.push({
+          x: timePoints,
+          y: values,
+          mode: 'lines+markers',
+          name: role
+        });
+      });
+      var layoutIncomeLine = {
+        title: 'Individual Income Evolution',
+        xaxis: { title: 'Epoch' },
+        yaxis: { title: 'Income' }
+      };
+      Plotly.newPlot(individualIncomeLineDiv, incomeTraces, layoutIncomeLine);
+      var giniCoefficientRadarDiv = container.getElement().find('#giniCoefficientRadar')[0];
+      var finalGini = [0.3, 0.4, 0.35, 0.45, 0.32, 0.38, 0.41, 0.37];
+      var radarData = [{
+        type: 'scatterpolar',
+        r: finalGini,
+        theta: roles,
+        fill: 'toself',
+        name: 'Final Gini Coefficient'
+      }];
+      var layoutRadar = {
+        polar: { radialaxis: { visible: true, range: [0,1] } },
+        showlegend: false,
+        title: 'Final Gini Coefficient'
+      };
+      Plotly.newPlot(giniCoefficientRadarDiv, radarData, layoutRadar);
+      var giniCoefficientLineDiv = container.getElement().find('#giniCoefficientLine')[0];
+      var giniTraces = [];
+      roles.forEach(function(role) {
+        var values = timePoints.map(function(t){ return (Math.random()*0.5 + 0.3).toFixed(2); });
+        giniTraces.push({
+          x: timePoints,
+          y: values,
+          mode: 'lines+markers',
+          name: role
+        });
+      });
+      var layoutGiniLine = {
+        title: 'Gini Coefficient Evolution',
+        xaxis: { title: 'Epoch' },
+        yaxis: { title: 'Gini Coefficient', range: [0,1] }
+      };
+      Plotly.newPlot(giniCoefficientLineDiv, giniTraces, layoutGiniLine);
+      container.on('resize', function() {
+        Plotly.Plots.resize(cooperationRatePieDiv);
+        Plotly.Plots.resize(cooperationRateLineDiv);
+        Plotly.Plots.resize(individualIncomeHistogramDiv);
+        Plotly.Plots.resize(individualIncomeLineDiv);
+        Plotly.Plots.resize(giniCoefficientRadarDiv);
+        Plotly.Plots.resize(giniCoefficientLineDiv);
+      });
+    });
+
+    // 初始化 Golden Layout
+    myLayout.init();
+  </script>
+  
+  <!-- 保留原有业务逻辑 -->
+  <script src="../js/script.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+// Copycat Behavior Tree
+digraph {
+	A [label="Opponent's Last Action?"]
+	B [label="Cooperate if Opponent Cooperated"]
+	C [label="Cheat if Opponent Cheated"]
+	A -> B
+	A -> C
+}

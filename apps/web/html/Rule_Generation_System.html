@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Merged Dashboard – Combined</title>
+  <!-- jQuery 与 jQuery UI -->
+  <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/smoothness/jquery-ui.css">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script>
+    window.$ = window.jQuery = jQuery;
+  </script>
+  <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+  <!-- NexusUI -->
+  <script src="https://cdn.jsdelivr.net/npm/nexusui@latest/dist/NexusUI.js"></script>
+  <!-- Golden Layout CSS & JS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/golden-layout@1.5.9/src/css/goldenlayout-base.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/golden-layout@1.5.9/src/css/goldenlayout-light-theme.css">
+  <script src="https://cdn.jsdelivr.net/npm/golden-layout@1.5.9/dist/goldenlayout.min.js"></script>
+  <!-- Plotly -->
+  <script src="https://cdn.plot.ly/plotly-2.18.2.min.js"></script>
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="../css/style.css">
+  <!-- 如果原有业务逻辑在 script.js 中，请保持加载 -->
+  <script src="../js/script.js"></script>
+
+</head>
+<body>
+  <div id="layoutContainer"></div>
+  
+  <script>
+    /*
+      配置说明：
+      外层采用 row 布局，将页面分为左右两部分：
+      - 左侧 stack：Input 页面（5个标签页：RuleSetting, StrategySetting, EvaluationExpectation, DesignerEvaluator, AgentTraining）
+      - 右侧 stack：Index 页面（3个标签页：ruleVisualization, strategyVisualization, evaluationVisualization）
+    */
+    var config = {
+      content: [{
+        type: 'row',
+        content: [
+          {
+            type: 'stack',
+            width: 30,
+            content: [
+              { type: 'component', componentName: 'RuleSetting', title: 'Rule Setting' },
+              { type: 'component', componentName: 'StrategySetting', title: 'Strategy Setting' },
+              { type: 'component', componentName: 'EvaluationExpectation', title: 'Evaluation Expectation' },
+              { type: 'component', componentName: 'DesignerEvaluator', title: 'Designer & Evaluator' },
+              { type: 'component', componentName: 'AgentTraining', title: 'Agent Training' }
+            ]
+          },
+          {
+            type: 'stack',
+            width: 50,
+            content: [
+              { type: 'component', componentName: 'ruleVisualization', title: 'Rule Visualization' },
+              { type: 'component', componentName: 'strategyVisualization', title: 'Strategy Visualization' },
+              { type: 'component', componentName: 'evaluationVisualization', title: 'Evaluation Visualization' }
+            ]
+          }
+        ]
+      }]
+    };
+    
+    var myLayout = new GoldenLayout(config, document.getElementById('layoutContainer'));
+    
+    /********** 左侧区域组件注册 **********/
+    // 1. RuleSetting（Rule Setting）
+    myLayout.registerComponent('RuleSetting', function(container, state) {
+      var html = `
+        <div id="RuleSetting">
+          <h2>Rule setting</h2>
+          <div class="slider-section">
+            <h3>Initial population</h3>
+            <div id="sliderContainer"></div>
+          </div>
+          <div class="trade-rules-section">
+            <h3>Trade Rules</h3>
+            <table>
+              <tbody>
+                <tr>
+                  <td>
+                    <span class="icon cheat">&#x2694;</span>
+                    <span class="icon cheat">&#x2694;</span>
+                  </td>
+                  <td>
+                    <span class="icon cheat">&#x2694;</span>
+                    <span class="icon cooperate">&#x1F91D;</span>
+                  </td>
+                  <td>
+                    <span class="icon cooperate">&#x1F91D;</span>
+                    <span class="icon cooperate">&#x1F91D;</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <input type="number" class="score-input" value="0">
+                    <input type="number" class="score-input" value="0">
+                  </td>
+                  <td>
+                    <input type="number" class="score-input" value="3">
+                    <input type="number" class="score-input" value="-1">
+                  </td>
+                  <td>
+                    <input type="number" class="score-input" value="2">
+                    <input type="number" class="score-input" value="2">
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="extra-section">
+            <h3>Additional Controls</h3>
+            <div class="control-row" id="roundNumberControl">
+              <label>Round Number:</label>
+              <input type="number" id="roundNumberInput" value="10" min="1" max="20">
+              <div id="roundNumberSlider"></div>
+            </div>
+            <div class="control-row" id="reproductionNumberControl">
+              <label>Reproduction Number:</label>
+              <input type="number" id="reproductionNumberInput" value="0" min="0" max="20">
+              <div id="reproductionNumberSlider"></div>
+            </div>
+            <div class="control-row" id="mistakePossibilityControl">
+              <label>Mistake Possibility:</label>
+              <div class="percent-input">
+                <input type="number" id="mistakePossibilityInput" value="5" min="0" max="100" step="1">
+              </div>
+              <div id="mistakePossibilityDial"></div>
+            </div>
+
+            <div class="control-row" id="fixedRuleControl">
+              <label>Fixed Rule:</label>
+              <div id="fixedRuleToggle"></div>
+              <!-- 隐藏的 input，用于存储固定规则的值 -->
+              <input type="hidden" id="hiddenFixedRule" value="True">
+            </div>
+          </div>
+
+        </div>
+      `;
+      container.getElement().html(html);
+      // 初始化滑块组（参考之前的实现代码）
+      var sliderContainer = container.getElement().find('#sliderContainer')[0];
+      var sliderParamsClassic = [
+        { name: 'Random',     color: '#2A2A99', defaultVal: 0 },
+        { name: 'Cheater',    color: '#0066ff', defaultVal: 0 },
+        { name: 'Cooperator', color: '#ff9900', defaultVal: 0 },
+        { name: 'Copycat',    color: '#990099', defaultVal: 0 },
+        { name: 'Grudger',    color: '#ff0000', defaultVal: 0 },
+        { name: 'Detective',  color: '#ffff00', defaultVal: 1 },
+        { name: 'AI',         color: '#999999', defaultVal: 1 },
+        { name: 'Human',      color: '#009900', defaultVal: 0 }
+      ];
+      sliderParamsClassic.forEach(function(param) {
+        var rowDiv = document.createElement('div');
+        rowDiv.className = 'slider-row';
+        
+        // 直接在 JS 里设置 Grid 布局
+        rowDiv.style.display = "grid";
+        rowDiv.style.gridTemplateColumns = "70px 50px auto"; 
+        //    第1列 70px (label)
+        //    第2列 50px (input)
+        //    第3列 auto (slider)
+        rowDiv.style.alignItems = "center";      // 垂直方向居中
+        rowDiv.style.columnGap = "10px";         // 列间距
+        rowDiv.style.marginBottom = "8px";       // 每行下方留一点间距
+        
+        var label = document.createElement('label');
+        label.textContent = param.name;
+
+        var input = document.createElement('input');
+        input.type = 'number';
+        input.min = 0;
+        input.max = 25;
+        input.value = param.defaultVal;
+
+        var sliderDiv = document.createElement('div');
+
+        // 将 label、input、sliderDiv 按顺序加入 rowDiv
+        rowDiv.appendChild(label);
+        rowDiv.appendChild(input);
+        rowDiv.appendChild(sliderDiv);
+
+        // 将 rowDiv 放入容器
+        sliderContainer.appendChild(rowDiv);
+
+        // 初始化 NexusUI Slider
+        var slider = new Nexus.Slider(sliderDiv, {
+          size: [120,15],
+          mode: 'absolute',
+          min: 0,
+          max: 25,
+          step: 1,
+          value: param.defaultVal,
+          orientation: 'horizontal'
+        });
+        slider.colorize("accent", param.color);
+
+        // 绑定联动：slider -> input
+        slider.on('change', function(val) {
+          input.value = val;
+        });
+
+        // 绑定联动：input -> slider
+        input.addEventListener('change', function() {
+          var newVal = parseInt(input.value, 10);
+          if (isNaN(newVal)) newVal = 0;
+          if (newVal < 0) newVal = 0;
+          if (newVal > 25) newVal = 25;
+          slider.value = newVal;
+        });
+      });
+
+      // 初始化 Round Number 控件
+      var roundNumberSliderDiv = container.getElement().find('#roundNumberSlider')[0];
+      var roundNumberInput = container.getElement().find('#roundNumberInput')[0];
+      var roundNumberSlider = new Nexus.Slider(roundNumberSliderDiv, {
+        size: [120,15],
+        mode: 'absolute',
+        min: 1,
+        max: 20,
+        step: 1,
+        value: 10,
+        orientation: 'horizontal'
+      });
+      roundNumberSlider.on('change', function(val) { roundNumberInput.value = val; });
+      roundNumberInput.addEventListener('change', function() {
+        var newVal = parseInt(roundNumberInput.value, 10);
+        if(isNaN(newVal)) newVal = 1;
+        if(newVal < 1) newVal = 1;
+        if(newVal > 100) newVal = 100;
+        roundNumberSlider.value = newVal;
+      });
+      // 初始化 Reproduction Number 控件
+      var reproductionNumberSliderDiv = container.getElement().find('#reproductionNumberSlider')[0];
+      var reproductionNumberInput = container.getElement().find('#reproductionNumberInput')[0];
+      var reproductionNumberSlider = new Nexus.Slider(reproductionNumberSliderDiv, {
+        size: [120,15],
+        mode: 'absolute',
+        min: 0,
+        max: 20,
+        step: 1,
+        value: 0,
+        orientation: 'horizontal'
+      });
+      reproductionNumberSlider.on('change', function(val) { reproductionNumberInput.value = val; });
+      reproductionNumberInput.addEventListener('change', function() {
+        var newVal = parseInt(reproductionNumberInput.value, 10);
+        if(isNaN(newVal)) newVal = 0;
+        if(newVal < 0) newVal = 0;
+        if(newVal > 25) newVal = 25;
+        reproductionNumberSlider.value = newVal;
+      });
+      // 初始化 Mistake Possibility 控件
+      var mistakePossibilityDialDiv = container.getElement().find('#mistakePossibilityDial')[0];
+      var mistakePossibilityInput = container.getElement().find('#mistakePossibilityInput')[0];
+      var mistakePossibilityDial = new Nexus.Dial(mistakePossibilityDialDiv, {
+        size: [60,60],
+        interaction: 'radial',
+        mode: 'relative',
+        min: 0,
+        max: 100,
+        step: 1,
+        value: 5
+      });
+      mistakePossibilityDial.on('change', function(val) {mistakePossibilityInput.value = Math.round(val );});
+      mistakePossibilityInput.addEventListener('change', function() {
+        var newVal = parseFloat(mistakePossibilityInput.value);
+        if(isNaN(newVal)) newVal = 0;
+        if(newVal < 0) newVal = 0;
+        if(newVal > 1) newVal = 1;
+        mistakePossibilityDial.value = newVal;
+      });
+      // 初始化 Fixed Rule Toggle 控件
+      var fixedRuleToggleDiv = container.getElement().find('#fixedRuleToggle')[0];
+      var fixedRuleToggle = new Nexus.Toggle(fixedRuleToggleDiv, { size: [40,20], state: true });
+
+      // 每次状态改变时更新隐藏 input 的值：打开时设为 "True"，关闭时设为 "False"
+      fixedRuleToggle.on('change', function(val) {
+        document.getElementById('hiddenFixedRule').value = fixedRuleToggle.state ? 'True' : 'False';
+      });
+
+    });
+    
+    // 2. StrategySetting（Strategy Setting）
+    myLayout.registerComponent('StrategySetting', function(container, state) {
+      var html = `
+        <div id="StrategySetting"> 
+          <h2>Strategy Setting</h2>
+          <div class="select-group">
+            <label>Human Player:</label>
+            <div id="humanPlayerSelect"></div>
+            <input type="hidden" id="hiddenHumanPlayer" value="False">
+          </div>
+          <div class="select-group">
+            <label>AI Type:</label>
+            <div id="aiTypeSelect"></div>
+            <input type="hidden" id="hiddenAIType" value="Q">
+          </div>
+          <!-- 按钮区域，包含两个子容器 -->
+          <div id="strategyButtonContainer" style="
+              margin-top: 40px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+            ">
+            <!-- 按钮容器 -->
+            <div id="buttonHolder" style="margin-bottom: 10px;"></div>
+            <!-- 提示文字 -->
+            <div id="buttonHint" style="font-size: 16px; color: #0074D9;">Run Program</div>
+          </div>
+        </div>
+      `;
+      container.getElement().html(html);
+      
+      // 初始化选择组件
+      var humanPlayerStrategySetting = container.getElement().find('#humanPlayerSelect')[0];
+      var aiTypeStrategySetting = container.getElement().find('#aiTypeSelect')[0];
+      var humanPlayerSelect = new Nexus.Select(humanPlayerStrategySetting, {
+        size: [100,30],
+        options: ['False','True']
+      });
+      humanPlayerSelect.value = 0; // 初始为 "False"
+      humanPlayerSelect.on('change', function(val) {
+        document.getElementById('hiddenHumanPlayer').value = humanPlayerSelect.value;
+      });
+
+      var aiTypeSelect = new Nexus.Select(aiTypeStrategySetting, {
+        size: [100,30],
+        options: ['Q','DQN']
+      });
+      aiTypeSelect.value = 0; // 初始为 "Q"
+      aiTypeSelect.on('change', function(val) {
+        document.getElementById('hiddenAIType').value = aiTypeSelect.value;
+      });
+
+      
+      // 在 buttonHolder 中创建按钮
+      var buttonHolder = container.getElement().find('#buttonHolder')[0];
+      var strategyButton = new Nexus.Button(buttonHolder, {
+        size: [120, 40],
+        text: 'Run Program'
+      });
+
+      // 使用 once 方法确保仅触发一次任务下载 
+strategyButton.once('change', function(val) {
+  // 修改提示文字，不改变按钮文本
+  var hintElement = document.getElementById("buttonHint");
+  if (hintElement) {
+    hintElement.innerText = "Program is running, Please wait.";
+  }
+  
+  // 收集所有 setting 页面的输入值
+  var settingSelectors = [
+    '#RuleSetting input',
+    '#StrategySetting input',
+    '#EvaluationExpectation input',
+    '#DesignerEvaluator input',
+    '#AgentTraining input'
+  ];
+  var inputs = document.querySelectorAll(settingSelectors.join(', '));
+  var settings = {};
+  inputs.forEach(function(input, index) {
+    var key = input.id || ('input_' + index);
+    settings[key] = input.value;
+  });
+  
+  // 将设置数据转换为文本，每行一个 "key: value"
+  var text = "";
+  for (var key in settings) {
+    text += key + ": " + settings[key] + "\n";
+  }
+  
+  // 创建 Blob 对象，生成下载链接并下载 settings.txt
+  var blob = new Blob([text], { type: "text/plain" });
+  var url = window.URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "settings.txt";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function() {
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  }, 0);
+
+  // 使用 AJAX (fetch) 将设置数据发送给 Flask 后端
+  fetch('http://127.0.0.1:5000/run_program', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(settings)
+  })
+  .then(function(response) {
+    return response.json();
+  })
+  .then(function(data) {
+    console.log('Python程序输出:', data.output);
+  })
+  .catch(function(error) {
+    console.error('Error:', error);
+  });
+});
+
+
+    });
+    
+    // 3. EvaluationExpectation（Evaluation Expectation）
+    myLayout.registerComponent('EvaluationExpectation', function(container, state) {
+      var html = `
+        <div id="EvaluationExpectation">
+          <h2>Evaluation Expectation</h2>
+          <div class="evaluation-group">
+            <div class="param-unit" id="unit_cooperationRate">
+              <div class="dial" id="cooperationRateDial"></div>
+              <div class="percent-input">
+                <input type="number" id="cooperationRateInput" value="50" min="0" max="100" step="1">
+              </div>
+              <div class="toggle" id="cooperationRateToggle"></div>
+              <div class="param-name">Cooperation Rate</div>
+            </div>
+            <div class="param-unit" id="unit_individualIncome">
+              <div class="dial" id="individualIncomeDial"></div>
+              <input type="number" id="individualIncomeInput" value="2" min="0" step="0.01">
+              <div class="toggle" id="individualIncomeToggle"></div>
+              <div class="param-name">Individual Income</div>
+            </div>
+            <div class="param-unit" id="unit_giniCoefficient">
+              <div class="dial" id="giniCoefficientDial"></div>
+              <div class="percent-input">
+                <input type="number" id="giniCoefficientInput" value="50" min="0" max="100" step="1">
+              </div>
+              <div class="toggle" id="giniCoefficientToggle"></div>
+              <div class="param-name">Gini Coefficient</div>
+            </div>
+          </div>
+        </div>
+      `;
+      container.getElement().html(html);
+      var cooperationRateDialDiv = container.getElement().find('#cooperationRateDial')[0];
+      var cooperationRateInput = container.getElement().find('#cooperationRateInput')[0];
+      var cooperationRateDial = new Nexus.Dial(cooperationRateDialDiv, {
+        size: [75,75],
+        interaction: 'radial',
+        mode: 'relative',
+        min: 0,
+        max: 100,      // 以百分比表示，最大值100%
+        step: 1,       // 采用整数步长
+        value: 50      // 初始值为50%
+      });
+      cooperationRateDial.on('change', function(val) { cooperationRateInput.value = Math.round(val); });
+      cooperationRateInput.addEventListener('change', function() {
+        var newVal = parseFloat(cooperationRateInput.value);
+        if(isNaN(newVal)) newVal = 0;
+        if(newVal < 0) newVal = 0;
+        if(newVal > 5) newVal = 5;
+        cooperationRateDial.value = newVal;
+      });
+      var cooperationRateToggleDiv = container.getElement().find('#cooperationRateToggle')[0];
+      var cooperationRateToggle = new Nexus.Toggle(cooperationRateToggleDiv, { size: [40,20], state: false });
+      
+      var individualIncomeDialDiv = container.getElement().find('#individualIncomeDial')[0];
+      var individualIncomeInput = container.getElement().find('#individualIncomeInput')[0];
+      var individualIncomeDial = new Nexus.Dial(individualIncomeDialDiv, {
+        size: [75,75],
+        interaction: 'radial',
+        mode: 'relative',
+        min: 0,
+        max: 10,
+        step: 0.01,
+        value: 2
+      });
+      individualIncomeDial.on('change', function(val) { individualIncomeInput.value = val.toFixed(2); });
+      individualIncomeInput.addEventListener('change', function() {
+        var newVal = parseFloat(individualIncomeInput.value);
+        if(isNaN(newVal)) newVal = 0;
+        if(newVal < 0) newVal = 0;
+        if(newVal > 10) newVal = 10;
+        individualIncomeDial.value = newVal;
+      });
+      var individualIncomeToggleDiv = container.getElement().find('#individualIncomeToggle')[0];
+      var individualIncomeToggle = new Nexus.Toggle(individualIncomeToggleDiv, { size: [40,20], state: false });
+      
+      var giniCoefficientDialDiv = container.getElement().find('#giniCoefficientDial')[0];
+      var giniCoefficientInput = container.getElement().find('#giniCoefficientInput')[0];
+      var giniCoefficientDial = new Nexus.Dial(giniCoefficientDialDiv, {
+        size: [75,75],
+        interaction: 'radial',
+        mode: 'relative',
+        min: 0,
+        max: 100,      // 以百分比表示，最大值100%
+        step: 1,       // 采用整数步长
+        value: 50      // 初始值为50%
+      });
+      giniCoefficientDial.on('change', function(val) { giniCoefficientInput.value = Math.round(val); });
+      giniCoefficientInput.addEventListener('change', function() {
+        var newVal = parseFloat(giniCoefficientInput.value);
+        if(isNaN(newVal)) newVal = 0;
+        if(newVal < 0) newVal = 0;
+        if(newVal > 1) newVal = 1;
+        giniCoefficientDial.value = newVal;
+      });
+      var giniCoefficientToggleDiv = container.getElement().find('#giniCoefficientToggle')[0];
+      var giniCoefficientToggle = new Nexus.Toggle(giniCoefficientToggleDiv, { size: [40,20], state: false });
+    });
+    
+    // 4. DesignerEvaluator（Designer & Evaluator）
+    myLayout.registerComponent('DesignerEvaluator', function(container, state) {
+      var html = `
+        <div id="DesignerEvaluator">
+          <h2>Designer and Evaluator</h2>
+          <div class="deParam-row" id="row_batch_size">
+            <label>batch_size</label>
+            <input type="number" id="de_input_batch_size" value="1" min="1" max="100" step="1">
+            <div class="de-slider-container" id="de_slider_batch_size"></div>
+          </div>
+          <div class="deParam-row" id="row_lr">
+            <label>lr</label>
+            <input type="number" id="de_input_lr" value="0.01" min="0" max="1" step="0.001">
+            <div class="de-slider-container" id="de_slider_lr"></div>
+          </div>
+          <div class="deParam-row" id="row_b1">
+            <label>b1</label>
+            <input type="number" id="de_input_b1" value="0.5" min="0" max="1" step="0.01">
+            <div class="de-slider-container" id="de_slider_b1"></div>
+          </div>
+          <div class="deParam-row" id="row_b2">
+            <label>b2</label>
+            <input type="number" id="de_input_b2" value="0.999" min="0" max="1" step="0.001">
+            <div class="de-slider-container" id="de_slider_b2"></div>
+          </div>
+          <div class="deParam-row" id="row_RuleDimension">
+            <label>RuleDimension</label>
+            <input type="number" id="de_input_RuleDimension" value="17" min="1" max="50" step="1">
+            <div class="de-slider-container" id="de_slider_RuleDimension"></div>
+          </div>
+          <div class="deParam-row" id="row_DE_train_episode">
+            <label>DE_train_episode</label>
+            <input type="number" id="de_input_DE_train_episode" value="5" min="1" max="100" step="1">
+            <div class="de-slider-container" id="de_slider_DE_train_episode"></div>
+          </div>
+          <div class="deParam-row" id="row_DE_test_episode">
+            <label>DE_test_episode</label>
+            <input type="number" id="de_input_DE_test_episode" value="1" min="1" max="100" step="1">
+            <div class="de-slider-container" id="de_slider_DE_test_episode"></div>
+          </div>
+          <div class="deParam-row" id="#de_input_evaluationSize">
+            <label>evaluationSize</label>
+            <input type="number" id="de_input_evaluationSize" value="1" min="1" max="10" step="1">
+            <div class="de-slider-container" id="de_slider_evaluationSize"></div>
+          </div>
+          <div class="deParam-row" id="#de_input_layersNum">
+            <label>layersNum</label>
+            <input type="number" id="de_input_layersNum" value="1" min="1" max="10" step="1">
+            <div class="de-slider-container" id="de_slider_layersNum"></div>
+          </div>
+        </div>
+      `;
+      container.getElement().html(html);
+      var deParams = [
+        { id: "batch_size", defaultVal: 1, min: 1, max: 100, step: 1 },
+        { id: "lr", defaultVal: 0.01, min: 0, max: 1, step: 0.001 },
+        { id: "b1", defaultVal: 0.5, min: 0, max: 1, step: 0.01 },
+        { id: "b2", defaultVal: 0.999, min: 0, max: 1, step: 0.001 },
+        { id: "RuleDimension", defaultVal: 17, min: 1, max: 50, step: 1 },
+        { id: "DE_train_episode", defaultVal: 5, min: 1, max: 100, step: 1 },
+        { id: "DE_test_episode", defaultVal: 1, min: 1, max: 100, step: 1 },
+        { id: "evaluationSize", defaultVal: 1, min: 1, max: 10, step: 1 },
+        { id: "layersNum", defaultVal: 1, min: 1, max: 10, step: 1 }
+      ];
+      deParams.forEach(function(param) {
+        var input = container.getElement().find("#de_input_" + param.id)[0];
+        var sliderDiv = container.getElement().find("#de_slider_" + param.id)[0];
+        var slider = new Nexus.Slider(sliderDiv, {
+          size: [120,20],
+          mode: 'absolute',
+          min: param.min,
+          max: param.max,
+          step: param.step,
+          value: param.defaultVal,
+          orientation: 'horizontal'
+        });
+        slider.on('change', function(val) { input.value = val; });
+        input.addEventListener('change', function() {
+          var newVal = parseFloat(input.value);
+          if(isNaN(newVal)) newVal = param.min;
+          if(newVal < param.min) newVal = param.min;
+          if(newVal > param.max) newVal = param.max;
+          slider.value = newVal;
+        });
+      });
+    });
+    
+    // 5. AgentTraining（Agent Training）
+    myLayout.registerComponent('AgentTraining', function(container, state) {
+      var html = `
+        <div id="AgentTraining">
+          <h2>Agent Training</h2>
+          <div class="agentParam-row" id="row_agent_train_epoch">
+            <label>agent_train_epoch</label>
+            <input type="number" id="input_agent_train_epoch" value="10" min="1" max="20000" step="1">
+            <div class="agent-slider-container" id="slider_agent_train_epoch"></div>
+          </div>
+          
+          <div class="agentParam-row" id="row_gamma">
+            <label>gamma</label>
+            <input type="number" id="input_gamma" value="0.99" min="0" max="1" step="0.01">
+            <div class="agent-slider-container" id="slider_gamma"></div>
+          </div>
+          <div class="agentParam-row" id="row_epsilon">
+            <label>epsilon</label>
+            <input type="number" id="input_epsilon" value="1.0" min="0" max="1" step="0.01">
+            <div class="agent-slider-container" id="slider_epsilon"></div>
+          </div>
+          <div class="agentParam-row" id="row_epsilon_decay">
+            <label>epsilon_decay</label>
+            <input type="number" id="input_epsilon_decay" value="0.999" min="0" max="1" step="0.001">
+            <div class="agent-slider-container" id="slider_epsilon_decay"></div>
+          </div>
+          <div class="agentParam-row" id="row_epsilon_min">
+            <label>epsilon_min</label>
+            <input type="number" id="input_epsilon_min" value="0.1" min="0" max="1" step="0.01">
+            <div class="agent-slider-container" id="slider_epsilon_min"></div>
+          </div>
+          <div class="agentParam-row" id="row_memory_size">
+            <label>memory_size</label>
+            <input type="number" id="input_memory_size" value="10000" min="1000" max="100000" step="1000">
+            <div class="agent-slider-container" id="slider_memory_size"></div>
+          </div>
+          <div class="agentParam-row" id="row_target_update">
+            <label>target_update</label>
+            <input type="number" id="input_target_update" value="10" min="1" max="100" step="1">
+            <div class="agent-slider-container" id="slider_target_update"></div>
+          </div>
+          <div class="agentParam-row" id="row_state_size">
+            <label>state_size</label>
+            <input type="number" id="input_state_size" value="20" min="5" max="100" step="1">
+            <div class="agent-slider-container" id="slider_state_size"></div>
+          </div>
+        </div>
+      `;
+      container.getElement().html(html);
+      var agentParams = [
+        { id: "agent_train_epoch", defaultVal: 10, min: 1, max: 20000, step: 1 },
+        { id: "gamma", defaultVal: 0.99, min: 0, max: 1, step: 0.01 },
+        { id: "epsilon", defaultVal: 1.0, min: 0, max: 1, step: 0.01 },
+        { id: "epsilon_decay", defaultVal: 0.999, min: 0, max: 1, step: 0.001 },
+        { id: "epsilon_min", defaultVal: 0.1, min: 0, max: 1, step: 0.01 },
+        { id: "memory_size", defaultVal: 10000, min: 1000, max: 100000, step: 1000 },
+        { id: "target_update", defaultVal: 10, min: 1, max: 100, step: 1 },
+        { id: "state_size", defaultVal: 20, min: 5, max: 100, step: 1 }
+      ];
+      agentParams.forEach(function(param) {
+        var input = container.getElement().find("#input_" + param.id)[0];
+        var sliderDiv = container.getElement().find("#slider_" + param.id)[0];
+        var slider = new Nexus.Slider(sliderDiv, {
+          size: [120,20],
+          mode: 'absolute',
+          min: param.min,
+          max: param.max,
+          step: param.step,
+          value: param.defaultVal,
+          orientation: 'horizontal'
+        });
+        slider.on('change', function(val) { input.value = val; });
+        input.addEventListener('change', function() {
+          var newVal = parseFloat(input.value);
+          if(isNaN(newVal)) newVal = param.min;
+          if(newVal < param.min) newVal = param.min;
+          if(newVal > param.max) newVal = param.max;
+          slider.value = newVal;
+        });
+      });
+    });
+    
+    /********** 右侧区域组件注册 **********/
+    // 6. ruleVisualization（Rule Visualization）
+    console.log("ruleVisualization component init");
+
+    myLayout.registerComponent('ruleVisualization', function(container, state) {
+      // 1) 定义组件HTML布局
+      var html = `
+        <div id="ruleVisualizationContent">
+          <h2 class="section-title">Rule Visualization</h2>
+          <div class="row">
+            <div class="col-md-6">
+              <div id="pieChart" style="width:100%; height:300px;"></div>
+            </div>
+            <div class="col-md-6">
+              <div id="lineChartInitialPopulation" style="width:100%; height:300px;"></div>
+            </div>
+          </div>
+          <div class="row" style="margin-top:20px;">
+            <div class="col-md-6">
+              <div id="tradeRuleChart" style="width:100%; height:300px;"></div>
+            </div>
+            <div class="col-md-6">
+              <div id="lineChartCombined" style="width:100%; height:300px;"></div>
+            </div>
+          </div>
+        </div>
+      `;
+      container.getElement().html(html);
+
+      // 2) 定义代理类型和交易规则标签（8个代理，6个规则）
+      var roles = ['Random','Cheater','Cooperator','Copycat','Grudger','Detective','AI','Human'];
+      var tradeRuleLabels = ['Rule 1','Rule 2','Rule 3','Rule 4','Rule 5','Rule 6'];
+
+      // 3) 初始化 Pie Chart（占位数据）
+      var pieDiv = container.getElement().find('#pieChart')[0];
+      var pieData = [{
+        values: [18,1,1,1,1,1,1,1],
+        labels: roles,
+        type: 'pie'
+      }];
+      Plotly.newPlot(pieDiv, pieData, { title: 'Initial Population Distribution' });
+
+      // 4) 初始化 LineChartInitialPopulation（8条折线，初始为空）
+      var lineChartDiv = container.getElement().find('#lineChartInitialPopulation')[0];
+      var layoutInitial = { 
+        title: 'Initial Population Over Time',
+        xaxis: { title: 'Epoch' },
+        yaxis: { title: 'Population Count' }
+      };
+      window.lineChartInitialPopulationData = [];
+      for (var i = 0; i < roles.length; i++) {
+        window.lineChartInitialPopulationData.push({
+          x: [],
+          y: [],
+          mode: 'lines+markers',
+          name: roles[i]
+        });
+      }
+      Plotly.newPlot(lineChartDiv, window.lineChartInitialPopulationData, layoutInitial);
+
+      // 5) 初始化 TradeRuleChart（6条折线，初始为空）
+      var tradeRuleDiv = container.getElement().find('#tradeRuleChart')[0];
+      var layoutTrade = { 
+        title: 'Trade Rule Changes Over Time',
+        xaxis: { title: 'Epoch' },
+        yaxis: { title: 'Trade Rule Value' }
+      };
+      window.tradeRuleChartData = [];
+      for (var i = 0; i < tradeRuleLabels.length; i++) {
+        window.tradeRuleChartData.push({
+          x: [],
+          y: [],
+          mode: 'lines+markers',
+          name: tradeRuleLabels[i]
+        });
+      }
+      Plotly.newPlot(tradeRuleDiv, window.tradeRuleChartData, layoutTrade);
+
+      // 6) 初始化 LineChartCombined（3条折线，初始为空）
+      // 初始化 LineChartCombined (3条折线，初始为空)
+      // 分别对应 round_number, reproduction_number, mistake_possibility
+      var lineChartCombinedDiv = container.getElement().find('#lineChartCombined')[0];
+      var layoutCombined = {
+        title: 'Combined Metrics Over Time',
+        xaxis: { title: 'Epoch' },
+        yaxis: { title: 'Round / Reproduction', range: [0, 20] },
+        yaxis2: { title: 'Mistake Possibility', overlaying: 'y', side: 'right', range: [0, 1] }
+      };
+      window.lineChartCombinedData = [
+        { x: [], y: [], mode: 'lines+markers', name: 'Round Number' },
+        { x: [], y: [], mode: 'lines+markers', name: 'Reproduction Number' },
+        { x: [], y: [], mode: 'lines+markers', name: 'Mistake Possibility', yaxis: 'y2' }
+      ];
+      Plotly.newPlot(lineChartCombinedDiv, window.lineChartCombinedData, layoutCombined);
+
+      // 7) 当组件大小改变时自适应
+      container.on('resize', function() {
+        Plotly.Plots.resize(pieDiv);
+        Plotly.Plots.resize(lineChartDiv);
+        Plotly.Plots.resize(tradeRuleDiv);
+        Plotly.Plots.resize(lineChartCombinedDiv);
+      });
+
+      // 8) 定义函数：从 Excel 数据更新所有图表
+      function updateChartsFromExcel() {
+        fetch("http://127.0.0.1:5000/get_excel_data")
+          .then(response => response.json())
+          .then(excelData => {
+            console.log("Excel data received:", excelData);
+            if (excelData.length > 0) {
+              // 先对 excelData 按 epoch 升序排序（如果未排序的话）
+              excelData.sort(function(a, b) { return a.epoch - b.epoch; });
+
+              // 更新 Pie Chart：只用最后一条记录
+              var latest = excelData[excelData.length - 1];
+              var latestCounts = latest.initial_agent_counts;
+              if (typeof latestCounts === 'string') {
+                latestCounts = JSON.parse(latestCounts);
+              }
+              Plotly.react(pieDiv, [{
+                values: latestCounts,
+                labels: roles,
+                type: 'pie'
+              }], { title: 'Initial Population (Epoch ' + latest.epoch + ')' });
+
+              // 重建 LineChartInitialPopulation数据：遍历所有记录
+              window.lineChartInitialPopulationData = [];
+              for (var i = 0; i < roles.length; i++) {
+                window.lineChartInitialPopulationData.push({
+                  x: [],
+                  y: [],
+                  mode: 'lines+markers',
+                  name: roles[i]
+                });
+              }
+              excelData.forEach(function(record) {
+                var epoch = record.epoch;
+                var countsArr = record.initial_agent_counts;
+                if (typeof countsArr === 'string') {
+                  countsArr = JSON.parse(countsArr);
+                }
+                for (var i = 0; i < countsArr.length; i++) {
+                  window.lineChartInitialPopulationData[i].x.push(epoch);
+                  window.lineChartInitialPopulationData[i].y.push(countsArr[i]);
+                }
+              });
+              Plotly.react(lineChartDiv, window.lineChartInitialPopulationData, layoutInitial);
+
+              // 重建 TradeRuleChart数据
+              window.tradeRuleChartData = [];
+              for (var i = 0; i < tradeRuleLabels.length; i++) {
+                window.tradeRuleChartData.push({
+                  x: [],
+                  y: [],
+                  mode: 'lines+markers',
+                  name: tradeRuleLabels[i]
+                });
+              }
+              excelData.forEach(function(record) {
+                var epoch = record.epoch;
+                var tradeArr = record.trade_rules;
+                if (typeof tradeArr === 'string') {
+                  tradeArr = JSON.parse(tradeArr);
+                }
+                for (var i = 0; i < tradeArr.length; i++) {
+                  window.tradeRuleChartData[i].x.push(epoch);
+                  window.tradeRuleChartData[i].y.push(tradeArr[i]);
+                }
+              });
+              Plotly.react(tradeRuleDiv, window.tradeRuleChartData, layoutTrade);
+
+              // 重建 LineChartCombined数据：round_number, reproduction_number, mistake_possibility
+              window.lineChartCombinedData = [
+                { x: [], y: [], mode: 'lines+markers', name: 'Round Number' },
+                { x: [], y: [], mode: 'lines+markers', name: 'Reproduction Number' },
+                { x: [], y: [], mode: 'lines+markers', name: 'Mistake Possibility', yaxis: 'y2' }
+              ];
+              excelData.forEach(function(record) {
+                var epoch = record.epoch;
+                window.lineChartCombinedData[0].x.push(epoch);
+                window.lineChartCombinedData[0].y.push(record.round_number);
+                window.lineChartCombinedData[1].x.push(epoch);
+                window.lineChartCombinedData[1].y.push(record.reproduction_number);
+                window.lineChartCombinedData[2].x.push(epoch);
+                window.lineChartCombinedData[2].y.push(record.mistake_possibility);
+              });
+              Plotly.react(lineChartCombinedDiv, window.lineChartCombinedData, layoutCombined);
+
+            }
+          })
+          .catch(error => console.error("Error loading Excel data:", error));
+      }
+
+      // 9) 页面初始化时立即更新所有图表
+      updateChartsFromExcel();
+
+      // 10) SSE 监听 Excel更新通知
+      var eventSource = new EventSource("http://127.0.0.1:5000/stream");
+      eventSource.onmessage = function(event) {
+        var data = JSON.parse(event.data);
+        console.log("Received SSE update:", data);
+        if (data.done) {
+          console.log("Experiment finished");
+          eventSource.close();
+          return;
+        }
+        if (data.excel_updated) {
+          updateChartsFromExcel();
+        }
+      };
+
+      eventSource.onerror = function(error) {
+        console.error("EventSource error:", error);
+      };
+    });
+
+    
+    // 7. strategyVisualization (Strategy Visualization)
+    myLayout.registerComponent('strategyVisualization', function(container, state) {
+      var html = `
+        <div id="strategyVisualizationContent">
+          <h2 class="section-title">Strategy Visualization</h2>
+          <div class="row">
+            <div class="col-md-4" style="margin-bottom:20px;">
+              <!-- NPC 和 Human 策略图保持不变 -->
+              <img src="../image/NPC_strategies.png" alt="NPC Strategy" style="width:58%; height:auto;">
+              <img src="../image/human_strategy.png" alt="Human Strategy" style="width:35%; height:auto;">
+            </div>
+            <div class="col-md-4" style="margin-bottom:20px;">
+              <!-- AI Strategy，初始为 AI_strategies.png -->
+              <img id="aiStrategyImg" 
+                  src="../image/AI_strategies.png" 
+                  alt="AI Strategy" 
+                  style="width:100%; height:auto;">
+            </div>
+          </div>
+        </div>
+      `;
+      container.getElement().html(html);
+
+      // 定义一个更新图片的函数，使用 container.getElement() 查找 #aiStrategyImg
+      function updateAIImage() {
+        var img = container.getElement().find('#aiStrategyImg')[0];
+        if (img) {
+          // 加上时间戳防止浏览器缓存
+          var newSrc = "http://127.0.0.1:5000/q_table_heatmap.png?" + new Date().getTime();
+          img.src = newSrc;
+          console.log("AI Strategy image updated to:", newSrc);
+        } else {
+          console.error("Cannot find element with id 'aiStrategyImg'");
+        }
+      }
+
+      // 页面打开时立即触发图片更新
+      updateAIImage();
+
+      // SSE 监听：后端推送 { "q_table_updated": true } 时更新图片
+      var eventSource = new EventSource("http://127.0.0.1:5000/stream");
+      eventSource.onmessage = function(event) {
+        var data = JSON.parse(event.data);
+        console.log("StrategyVisualization SSE:", data);
+        if (data.done) {
+          console.log("Experiment finished");
+          eventSource.close();
+          return;
+        }
+        if (data.q_table_updated) {
+          updateAIImage();
+        }
+      };
+
+      eventSource.onerror = function(error) {
+        console.error("EventSource error in strategyVisualization:", error);
+      };
+    });
+    
+    /********** 8. evaluationVisualization（Evaluation Visualization） **********/
+myLayout.registerComponent('evaluationVisualization', function(container, state) {
+  var html = `
+    <div id="evaluationVisualizationContent">
+      <h3 class="section-title">Evaluation Visualization</h3>
+      <div class="row" style="margin-bottom:20px;">
+        <div class="col-md-6">
+          <div id="cooperationRatePie" style="width:100%; height:300px;"></div>
+        </div>
+        <div class="col-md-6">
+          <div id="cooperationRateLine" style="width:100%; height:300px;"></div>
+        </div>
+      </div>
+      <div class="row" style="margin-bottom:20px;">
+        <div class="col-md-6">
+          <div id="individualIncomeHistogram" style="width:100%; height:300px;"></div>
+        </div>
+        <div class="col-md-6">
+          <div id="individualIncomeLine" style="width:100%; height:300px;"></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-6">
+          <div id="giniCoefficientRadar" style="width:100%; height:300px;"></div>
+        </div>
+        <div class="col-md-6">
+          <div id="giniCoefficientLine" style="width:100%; height:300px;"></div>
+        </div>
+      </div>
+    </div>
+  `;
+  container.getElement().html(html);
+
+  // 定义类别标签，9个数据：前8项为各类型，最后一项为总体
+  var categories = ['Random','Cheater','Cooperator','Copycat','Grudger','Detective','AI','human','Overall'];
+  
+  // 用于折线图 x 轴：epoch 数组（后续从数据中获取）
+  var epochs = [];
+
+  // 初始化 Pie Chart（占位数据）
+  var cooperationRatePieDiv = container.getElement().find('#cooperationRatePie')[0];
+  var pieData = [{
+    values: [0.8,0.6,0.7,0.9,0.5,0.85,0.65,0.75,0.72],
+    labels: categories,
+    type: 'pie'
+  }];
+  Plotly.newPlot(cooperationRatePieDiv, pieData, { title: 'Final Cooperation Rate' });
+
+  // 初始化 Cooperation Rate Line Chart（初始空）
+  var cooperationRateLineDiv = container.getElement().find('#cooperationRateLine')[0];
+  var coopLineData = [];
+  for (var i = 0; i < categories.length; i++) {
+    coopLineData.push({ x: [], y: [], mode: 'lines+markers', name: categories[i] });
+  }
+  var layoutCoopLine = { title: 'Cooperation Rate Evolution', xaxis: { title: 'Epoch' }, yaxis: { title: 'Cooperation Rate', range: [0,1] } };
+  Plotly.newPlot(cooperationRateLineDiv, coopLineData, layoutCoopLine);
+
+  // 初始化 Individual Income Histogram（柱状图，占位数据）
+  var individualIncomeHistogramDiv = container.getElement().find('#individualIncomeHistogram')[0];
+  var incomeBarData = [{
+    x: categories,
+    y: [200,180,220,210,190,230,205,215,205],
+    type: 'bar'
+  }];
+  Plotly.newPlot(individualIncomeHistogramDiv, incomeBarData, { title: 'Final Individual Income', xaxis: { title: 'Category' }, yaxis: { title: 'Income' } });
+
+  // 初始化 Individual Income Line Chart（初始空）
+  var individualIncomeLineDiv = container.getElement().find('#individualIncomeLine')[0];
+  var incomeLineData = [];
+  for (var i = 0; i < categories.length; i++) {
+    incomeLineData.push({ x: [], y: [], mode: 'lines+markers', name: categories[i] });
+  }
+  var layoutIncomeLine = { title: 'Individual Income Evolution', xaxis: { title: 'Epoch' }, yaxis: { title: 'Income' } };
+  Plotly.newPlot(individualIncomeLineDiv, incomeLineData, layoutIncomeLine);
+
+  // 初始化 Gini Coefficient Radar Chart（占位数据）
+  var giniCoefficientRadarDiv = container.getElement().find('#giniCoefficientRadar')[0];
+  var radarData = [{
+    type: 'scatterpolar',
+    r: [0.3,0.4,0.35,0.45,0.32,0.38,0.41,0.37,0.36],
+    theta: categories,
+    fill: 'toself',
+    name: 'Final Gini Coefficient'
+  }];
+  var layoutRadar = { polar: { radialaxis: { visible: true, range: [0,1] } }, showlegend: false, title: 'Final Gini Coefficient' };
+  Plotly.newPlot(giniCoefficientRadarDiv, radarData, layoutRadar);
+
+  // 初始化 Gini Coefficient Line Chart（初始空）
+  var giniCoefficientLineDiv = container.getElement().find('#giniCoefficientLine')[0];
+  var giniLineData = [];
+  for (var i = 0; i < categories.length; i++) {
+    giniLineData.push({ x: [], y: [], mode: 'lines+markers', name: categories[i] });
+  }
+  var layoutGiniLine = { title: 'Gini Coefficient Evolution', xaxis: { title: 'Epoch' }, yaxis: { title: 'Gini Coefficient', range: [0,1] } };
+  Plotly.newPlot(giniCoefficientLineDiv, giniLineData, layoutGiniLine);
+
+  // 自适应大小
+  container.on('resize', function() {
+    Plotly.Plots.resize(cooperationRatePieDiv);
+    Plotly.Plots.resize(cooperationRateLineDiv);
+    Plotly.Plots.resize(individualIncomeHistogramDiv);
+    Plotly.Plots.resize(individualIncomeLineDiv);
+    Plotly.Plots.resize(giniCoefficientRadarDiv);
+    Plotly.Plots.resize(giniCoefficientLineDiv);
+  });
+
+  // 定义函数：从后端获取 test_results.xlsx 数据，并更新各图表
+  function updateChartsFromExcel() {
+    fetch("http://127.0.0.1:5000/get_test_results")
+      .then(response => response.json())
+      .then(excelData => {
+        console.log("Test results Excel data received:", excelData);
+        if (excelData.length > 0) {
+          // 先对数据按 epoch 升序排序
+          excelData.sort(function(a, b) { return a.epoch - b.epoch; });
+          // 最新数据用于更新 Pie, Histogram, Radar 图
+          var latest = excelData[excelData.length - 1];
+
+          // 解析最新数据各项（假设存储为 JSON 字符串）
+          var latest_coop = (typeof latest.cooperation_rate === 'string') ? JSON.parse(latest.cooperation_rate) : latest.cooperation_rate;
+          var latest_income = (typeof latest.individual_income === 'string') ? JSON.parse(latest.individual_income) : latest.individual_income;
+          var latest_gini = (typeof latest.gini_coefficient === 'string') ? JSON.parse(latest.gini_coefficient) : latest.gini_coefficient;
+
+          // 更新 Pie Chart（合作率，只显示最新数据）
+          Plotly.react(cooperationRatePieDiv, [{
+            values: latest_coop,
+            labels: categories,
+            type: 'pie'
+          }], { title: 'Final Cooperation Rate (Epoch ' + latest.epoch + ')' });
+
+          // 更新 Individual Income Histogram（柱状图）
+          Plotly.react(individualIncomeHistogramDiv, [{
+            x: categories,
+            y: latest_income,
+            type: 'bar'
+          }], { title: 'Final Individual Income (Epoch ' + latest.epoch + ')', xaxis: { title: 'Category' }, yaxis: { title: 'Income' } });
+
+          // 更新 Gini Coefficient Radar Chart
+          Plotly.react(giniCoefficientRadarDiv, [{
+            type: 'scatterpolar',
+            r: latest_gini,
+            theta: categories,
+            fill: 'toself',
+            name: 'Final Gini Coefficient'
+          }], { polar: { radialaxis: { visible: true, range: [0,1] } }, showlegend: false, title: 'Final Gini Coefficient (Epoch ' + latest.epoch + ')' });
+
+          // 更新折线图：逐个 epoch 累积数据
+          // 首先，重建全局数组
+          epochs = excelData.map(record => record.epoch);
+          // 对于合作率、收入和 Gini 分别构建 9 个数组（每个数组对应一个类别）
+          var coopLineData = [];
+          var incomeLineData = [];
+          var giniLineData = [];
+          for (var i = 0; i < categories.length; i++) {
+            coopLineData.push({ x: [], y: [], mode: 'lines+markers', name: categories[i] });
+            incomeLineData.push({ x: [], y: [], mode: 'lines+markers', name: categories[i] });
+            giniLineData.push({ x: [], y: [], mode: 'lines+markers', name: categories[i] });
+          }
+          // 遍历所有记录
+          excelData.forEach(function(record) {
+            var ep = record.epoch;
+            var coop_vals = (typeof record.cooperation_rate === 'string') ? JSON.parse(record.cooperation_rate) : record.cooperation_rate;
+            var income_vals = (typeof record.individual_income === 'string') ? JSON.parse(record.individual_income) : record.individual_income;
+            var gini_vals = (typeof record.gini_coefficient === 'string') ? JSON.parse(record.gini_coefficient) : record.gini_coefficient;
+            for (var i = 0; i < categories.length; i++) {
+              coopLineData[i].x.push(ep);
+              coopLineData[i].y.push(coop_vals[i]);
+              incomeLineData[i].x.push(ep);
+              incomeLineData[i].y.push(income_vals[i]);
+              giniLineData[i].x.push(ep);
+              giniLineData[i].y.push(gini_vals[i]);
+            }
+          });
+          // 更新折线图
+          Plotly.react(cooperationRateLineDiv, coopLineData, layoutCoopLine);
+          Plotly.react(individualIncomeLineDiv, incomeLineData, layoutIncomeLine);
+          Plotly.react(giniCoefficientLineDiv, giniLineData, layoutGiniLine);
+        }
+      })
+      .catch(error => console.error("Error loading test results Excel data:", error));
+  }
+
+  // 第一次页面加载时立即调用
+  updateChartsFromExcel();
+
+  // SSE 监听：如果后端推送 test_results 更新通知（例如 { "test_results_updated": true }），则重新获取数据
+  var eventSource = new EventSource("http://127.0.0.1:5000/stream");
+  eventSource.onmessage = function(event) {
+    var data = JSON.parse(event.data);
+    console.log("Received SSE update in evaluationVisualization:", data);
+    if (data.done) {
+      console.log("Experiment finished");
+      eventSource.close();
+      return;
+    }
+    if (data.test_results_updated) {
+      updateChartsFromExcel();
+    }
+  };
+
+  eventSource.onerror = function(error) {
+    console.error("EventSource error in evaluationVisualization:", error);
+  };
+});
+
+    
+    myLayout.init();
+  </script>
+</body>
+</html>
