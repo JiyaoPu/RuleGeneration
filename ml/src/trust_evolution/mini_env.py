@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from Q_brain import QLearningAgent
 from DQN_brain import DQNAgent
 import matplotlib.pyplot as plt
@@ -6,6 +8,28 @@ import numpy as np
 import random
 import plotly.graph_objects as go
 import copy
+from pathlib import Path
+import os, json, sys
+import pandas as pd
+
+
+def repo_root() -> Path:
+    """
+    从当前文件位置向上找，直到找到包含 'ml' 目录或 '.git' 的目录。
+    """
+    p = Path(__file__).resolve()
+    for parent in [p] + list(p.parents):
+        if (parent / "ml").exists() or (parent / ".git").exists():
+            return parent
+    return Path.cwd()
+
+def resolve_path(path_like: str | Path, base: Path | None = None) -> Path:
+    """
+    把相对路径解析为绝对路径：默认相对 repo_root()
+    """
+    base = base or repo_root()
+    path = Path(path_like)
+    return path if path.is_absolute() else (base / path).resolve()
 
 class MiniEnv:
     def __init__(self, trade_rules, round_number, reproduction_number, mistake_possibility, extrinsic_reward):  #[-3, -3, 0, 2, 5, 5] [0,0,3,-1,2,2 ]
@@ -31,22 +55,34 @@ class MiniEnv:
         self.extrinsic_reward = extrinsic_reward
         self.aiType = 'Q'
 
+
     def plot_results(self):
         """
         绘制 Epoch 与 DQN 总资金 / 2 的关系图。
         """
+
+        # 使用 resolve_path 解析路径
+        output_path = resolve_path("ml/data/Q_money_over_epochs.png")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
         plt.figure(figsize=(12, 8))
-        plt.plot(self.epoch_list, self.GiniCoefficient, marker='o', linestyle='-', color='b',
+        plt.plot(self.epoch_list, self.GiniCoefficient,
+                 marker='o', linestyle='-', color='b',
                  label=self.aiType)
+
         plt.title(self.aiType, fontsize=16)
         plt.xlabel('Epoch', fontsize=14)
         plt.ylabel('Gini Coefficient', fontsize=14)
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
-        plt.savefig('Q_money_over_epochs.png')  # 保存图像
-        plt.show()  # 显示图像
 
+        plt.savefig(output_path)
+        print(f"图像已保存至 {output_path}")
+
+        # Azure 上不显示
+        if os.getenv("AZUREML_RUN_ID") is None:
+            plt.show()
     def plot_trust_matrix(self, trust_matrix, labels, filename="trust_matrix_heatmap.png"):
         """
         绘制一个范围为0到1的8×8 Trust Matrix热力图，并使用 plt.savefig 保存为图片。
@@ -99,8 +135,9 @@ class MiniEnv:
         fig.colorbar(cax, ax=ax, label="Trust")
 
         # 保存图像
-        plt.savefig(filename, dpi=300, bbox_inches='tight')
-
+        out_path = resolve_path(filename)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(out_path, dpi=300, bbox_inches='tight')
         # 显示图像
         plt.show()
 
@@ -119,8 +156,10 @@ class MiniEnv:
             'Gini Coefficient': self.GiniCoefficient
         }
         df = pd.DataFrame(data)
-        df.to_csv(filename, index=False)
-        print(f"结果已保存到 {filename}")
+        out_path = resolve_path(filename)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(out_path, index=False)
+        print(f"结果已保存到 {out_path}")
 
     def skill_translation(self, individual_income):
         """
@@ -155,12 +194,15 @@ class MiniEnv:
         self.CooperationRate.clear()
         self.GiniCoefficient.clear()
 
+    def reset(self, agentList=None, tradeRules=None, extrinsic_reward=None):
+        if agentList is None: agentList = []
+        if tradeRules is None: tradeRules = [-3, -3, 0, 2, 5, 5]
+        if extrinsic_reward is None: extrinsic_reward = [0, 0]
 
-    def reset(self, agentList=[], tradeRules=[-3, -3, 0, 2, 5, 5], extrinsic_reward=[0, 0]):
         self.agents.clear()
         self.agents_dict.clear()
-        # Properly reset using setup method
-        self.setup(agentList, tradeRules, extrinsic_reward)
+        self.setup(agentList, tradeRules, self.round_number, self.reproduction_number, self.mistake_possibility,
+                   extrinsic_reward)
 
     def calculate_rewards(self, action_A, action_B):
         # 根据 tradeRules 定义奖励矩阵

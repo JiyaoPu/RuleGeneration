@@ -1,10 +1,10 @@
 import UnityEngine as ue
 from Q_brain import QLearningTable
 import torch
-from mini_env import Game
+from mini_env import MiniEnv
 
 def OneGame(AgentNum,TradeRules):
-    env = Game(AgentNum,TradeRules)
+    env = MiniEnv(AgentNum,TradeRules)
     env.setup(AgentNum,TradeRules)
     TradeList = env.tradeList
     ActionList = []

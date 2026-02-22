@@ -1,17 +1,40 @@
+from __future__ import annotations
+
 import UnityEngine as ue
-from Q_brain import QLearningTable
+from Q_brain import QLearningAgent
 import torch
-from mini_env import Game
-from main import Generator
+from mini_env import MiniEnv
+from Experiment import RuleDesigner
 from torch.autograd import Variable
 import numpy as np
 import random
-from main import Environment
+from Experiment import Environment
+
+from pathlib import Path
+import os, json, sys
+import pandas as pd
 
 
+def repo_root() -> Path:
+    """
+    从当前文件位置向上找，直到找到包含 'ml' 目录或 '.git' 的目录。
+    """
+    p = Path(__file__).resolve()
+    for parent in [p] + list(p.parents):
+        if (parent / "ml").exists() or (parent / ".git").exists():
+            return parent
+    return Path.cwd()
+
+def resolve_path(path_like: str | Path, base: Path | None = None) -> Path:
+    """
+    把相对路径解析为绝对路径：默认相对 repo_root()
+    """
+    base = base or repo_root()
+    path = Path(path_like)
+    return path if path.is_absolute() else (base / path).resolve()
 
 def OneGame(AgentNum,TradeRules):
-    env = Game(AgentNum,TradeRules)
+    env = MiniEnv(AgentNum,TradeRules)
     env.setup(AgentNum,TradeRules)
     TradeList = env.tradeList
     ActionList = []
@@ -19,7 +42,7 @@ def OneGame(AgentNum,TradeRules):
     AgentsDict = {}
     for i in range(AgentNum):  # create agents
         id = manager.roles[i].GetComponent("Role").id
-        agent_temp = QLearningTable(actions=actionlist)
+        agent_temp = QLearningAgent(actions=actionlist)
         agent_temp.set_q_table_by_id(id)
         AgentsDict.update({id: agent_temp})
 
@@ -100,9 +123,9 @@ def AIDesigner():
     cooperationRate = Variable(Tensor(np.random.normal(cooperationRate, 0, (1, 1))),
                                requires_grad=False)  # here we use success rate as the measurement.
 
-    generator = Generator()
-    PATH = "D:/OneDrive - Durham University/1.Durham University/7.Automated game design/code/Eden/Maze/variableMaze_Vladimir/designer/designer.pth"
-    generator.load_state_dict(torch.load(PATH))
+    generator = RuleDesigner()
+    PATH = resolve_path("designer/designer.pth")
+    generator.load_state_dict(torch.load(str(PATH), map_location="cpu"))
     generator.eval()
     sr = generator(cooperationRate)
     rules = sr[0]

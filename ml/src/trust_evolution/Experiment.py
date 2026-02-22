@@ -1,42 +1,36 @@
+from __future__ import annotations
+
 import argparse
-import os
-import math
-import random
-import torchvision.transforms as transforms
-from torchvision.utils import save_image
-from agent import Agent
-from torch.utils.data import DataLoader
-from torchvision import datasets
-from torch.autograd import Variable
-import winsound
-import seaborn as sns
 import copy
+import json
+import math
+import os
+import random
+import sys
+from pathlib import Path
+from warnings import simplefilter
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch
-from pathlib import Path
-from mini_env import MiniEnv
-from Q_brain import QLearningAgent
+from agent import Agent
 from DQN_brain import DQNAgent
-from warnings import simplefilter
-import json, sys
+from mini_env import MiniEnv
+from mpl_toolkits.mplot3d import Axes3D
+from Q_brain import QLearningAgent
 from scipy.ndimage import gaussian_filter
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D  # 确保已安装
-from matplotlib.lines import Line2D
-import numpy as np
-import pandas as pd
-import os
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import os
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
 from scipy.stats import qmc
 from sklearn.manifold import TSNE
-
+from torch.autograd import Variable
+from torch.utils.data import DataLoader
+from torchvision import datasets
+from torchvision.utils import save_image
+import torchvision.transforms as transforms
+from matplotlib.lines import Line2D
 
 
 simplefilter(action="ignore",category=FutureWarning)
@@ -102,7 +96,7 @@ parser.add_argument("--layersNum", type=int, default=1, help="layer number of th
 parser.add_argument("--evaluationSize", type=int, default=1, help="size of the evaluation metrics")
 
 # Agent training
-parser.add_argument("--agent_train_epoch", type=int, default=40, help="number of epoch of training agent")
+parser.add_argument("--agent_train_epoch", type=int, default=10, help="number of epoch of training agent")
 parser.add_argument("--gamma", type=float, default=0.99, help="discount factor for rewards")
 parser.add_argument("--epsilon", type=float, default=1.0, help="initial epsilon for epsilon-greedy")
 parser.add_argument("--epsilon_decay", type=float, default=0.999, help="epsilon decay rate")
@@ -120,25 +114,53 @@ publish = False
 printQtable = False
 opt = parser.parse_args()
 
-cuda = True if torch.cuda.is_available() else False
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+cuda = (device.type == "cuda")
+print(f"[Device] {device} | cuda_available={torch.cuda.is_available()}")
 
 # 在模块顶层定义全局变量，用于判断是否已经初始化 Excel 文件
 excel_initialized = False
 first_save = False
 
 
-def publish_excel_update(update_data,
-                         excel_path="C:/Users/hilab/OneDrive/Desktop/Rule_Generation/WebDash/data/dataupdates.xlsx"):
+def repo_root() -> Path:
+    """
+    从当前文件位置向上找，直到找到包含 'ml' 目录或 '.git' 的目录。
+    """
+    p = Path(__file__).resolve()
+    for parent in [p] + list(p.parents):
+        if (parent / "ml").exists() or (parent / ".git").exists():
+            return parent
+    return Path.cwd()
+
+def resolve_path(path_like: str | Path, base: Path | None = None) -> Path:
+    """
+    把相对路径解析为绝对路径：默认相对 repo_root()
+    """
+    base = base or repo_root()
+    path = Path(path_like)
+    return path if path.is_absolute() else (base / path).resolve()
+
+def publish_excel_update(update_data, excel_path: str | Path | None = None):
     global excel_initialized
 
-    # 第一次调用时，删除已有的 Excel 文件（或清空）
+    # 允许环境变量覆盖（可选，但很好用）
+    if excel_path is None:
+        excel_path = os.getenv("RULEGEN_EXCEL_PATH", "apps/web/data/dataupdates.xlsx")
+
+    excel_path = resolve_path(excel_path)
+    # 确保目录存在
+    excel_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # 第一次调用时，删除已有文件
     if not excel_initialized:
-        if os.path.exists(excel_path):
-            os.remove(excel_path)
+        if excel_path.exists():
+            excel_path.unlink()
         excel_initialized = True
 
-    # 如果文件存在，则读取已有数据并追加，否则直接创建新 DataFrame
-    if os.path.exists(excel_path):
+    # 追加写入
+    if excel_path.exists():
         df_existing = pd.read_excel(excel_path)
         df_new = pd.DataFrame([update_data])
         df_combined = pd.concat([df_existing, df_new], ignore_index=True)
@@ -146,7 +168,7 @@ def publish_excel_update(update_data,
         df_combined = pd.DataFrame([update_data])
 
     df_combined.to_excel(excel_path, index=False)
-    print("UPDATE_EXCEL:" + json.dumps({"excel_updated": True}))
+    print("UPDATE_EXCEL:" + json.dumps({"excel_updated": True, "path": str(excel_path)}))
     sys.stdout.flush()
 
 
@@ -222,8 +244,7 @@ def plot_q_table(q_table, output_path="q_table_heatmap.png"):
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
 
-def save_test_results_to_excel(test_result, epoch,
-                               excel_path="C:/Users/hilab/OneDrive/Desktop/Rule_Generation/WebDash/data/test_results.xlsx"):
+def save_test_results_to_excel(test_result, epoch,excel_path=None):
     """
     将测试结果保存到 Excel 文件中。
     格式：
@@ -238,6 +259,15 @@ def save_test_results_to_excel(test_result, epoch,
         epoch: 数字，表示当前测试的 epoch 数量
         excel_path: Excel 文件保存路径
     """
+    # 允许环境变量覆盖
+    if excel_path is None:
+        excel_path = os.getenv(
+            "RULEGEN_TEST_RESULTS_PATH",
+            "apps/web/data/test_results.xlsx"   # 默认相对路径
+        )
+
+    excel_path = resolve_path(excel_path)
+
     global first_save
 
     # 将 9 维列表转换为字符串保存
@@ -272,42 +302,6 @@ def save_test_results_to_excel(test_result, epoch,
         except Exception as e:
             print("保存Excel数据时出错：", e)
     print(f"测试结果已保存到 {excel_path}")
-# def save_test_results_to_excel(test_result, epoch,
-#                                excel_path="C:/Users/hilab/OneDrive/Desktop/Rule_Generation/WebDash/data/test_results.xlsx"):
-#     """
-#     将测试结果保存到 Excel 文件中。
-#     格式：
-#         epoch, gini_coefficient, cooperation_rate, individual_income
-#     其中 epoch 为数字，其它3个字段为 9 维列表（以字符串形式保存）。
-#
-#     如果文件存在，则追加记录；否则新建文件。
-#
-#     参数：
-#         test_result: 字典，包含 'gini_coefficient', 'cooperation_rate', 'individual_income'
-#                      每个键对应一个长度为9的列表。
-#         epoch: 数字，表示当前测试的 epoch 数量
-#         excel_path: Excel 文件保存路径
-#     """
-#     # 将 9 维列表转换为字符串保存
-#
-#     row = {
-#         "epoch": epoch,
-#         "gini_coefficient": str(test_result['gini_coefficient']),
-#         "cooperation_rate": str(test_result['cooperation_rate']),
-#         "individual_income": str(test_result['individual_income'])
-#     }
-#     df_new = pd.DataFrame([row])
-#
-#     if os.path.exists(excel_path):
-#         try:
-#             df_existing = pd.read_excel(excel_path)
-#             df_combined = pd.concat([df_existing, df_new], ignore_index=True)
-#             df_combined.to_excel(excel_path, index=False)
-#         except Exception as e:
-#             print("保存Excel数据时出错：", e)
-#     else:
-#         df_new.to_excel(excel_path, index=False)
-#     print(f"测试结果已保存到 {excel_path}")
 
 
 
@@ -536,7 +530,13 @@ class Environment(nn.Module):
         if printQtable:
             for agent in self.agents:
                 if isinstance(agent, QLearningAgent):
-                    plot_q_table(agent.q_table, output_path="C:/Users/hilab/OneDrive/Desktop/Rule_Generation/WebDash/data/q_table_heatmap.png")
+                    output_path = resolve_path(
+                        os.getenv("RULEGEN_QTABLE_PATH",
+                                  "apps/web/data/q_table_heatmap.png")  # 默认相对路径
+                    )
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+                    plot_q_table(agent.q_table, output_path=str(output_path))
                     break
         # return Evaluation
         return difficulty, skill_list
@@ -714,8 +714,17 @@ def plot_skill_surfaces_at_epochs(desired_epochs,
                                   save_model,
                                   extrinsic_reward_range=(-opt.difficulty,opt.difficulty),
                                   num_points=13,
-                                  output_path="./data/skill_extrinsic_reward/skill_surfaces.png",
-                                  csv_output_dir="./data/skill_extrinsic_reward/"):
+                                  output_path= resolve_path(
+                                        os.getenv(
+                                            "RULEGEN_SKILL_SURFACE_PATH",
+                                            "data/skill_extrinsic_reward/skill_surfaces.png"
+                                        )),
+                                  csv_output_dir=resolve_path(
+                                        os.getenv(
+                                            "RULEGEN_SKILL_SURFACE_CSV_DIR",
+                                            "data/skill_extrinsic_reward/"
+                                        )
+                                  )):
     """
     对 extrinsic_reward 的第一维和第二维分别从 extrinsic_reward_range[0] 到 extrinsic_reward_range[1] 分成 num_points 份，
     共生成 num_points*num_points 个 extrinsic_reward 组合（二维向量）。
@@ -805,8 +814,9 @@ def trading_rule_difficulty(initial_agent_counts,
                             DE_epoch_id,
                             save_model,
                             extrinsic_reward,
-                            num_samples=10, output_csv="trading_rule_difficulty.csv",
-                            tsne_output="trading_rule_tsne.png"):
+                            num_samples=10,
+                            output_csv="data/trading_rule_difficulty.csv",
+                            tsne_output="data/trading_rule_tsne.png"):
     """
     1. 利用拉丁超立方采样，在6维空间（每个维度取值范围[-3,3]）中采样 num_samples 个 trading rule 样本。
     2. 对每个交易规则样本，将其传入 Environment 模块进行测试，得到 (dummy_difficulty, skill_list)。
@@ -821,45 +831,51 @@ def trading_rule_difficulty(initial_agent_counts,
       mistake_possibility: 犯错概率
       DE_epoch_id: 设计训练轮次编号（用于环境调用）
       save_model: 是否保存模型（传递给 environment）
-      num_samples (int): 拉丁超立方采样的样本数，默认180
+      num_samples (int): 拉丁超立方采样的样本数，默认10
       output_csv (str): 结果保存的 CSV 文件路径
       tsne_output (str): t-SNE 可视化结果保存的图像路径
     """
+
+    # --- 路径解析：统一用 resolve_path ---
+    output_csv_path = resolve_path(output_csv)
+    tsne_output_path = resolve_path(tsne_output)
+
     # 1. 拉丁超立方采样：6维，每个维度均匀采样 num_samples 个点
     sampler = qmc.LatinHypercube(d=6)
     sample = sampler.random(n=num_samples)  # 样本在 [0,1] 区间内
     # 将 [0,1] 线性映射到 [-3,3]： x_mapped = x * 6 - 3
     trading_rules = sample * 6 - 3  # shape = (num_samples, 6)
 
+    # NOTE: 你原代码在这里强制覆写 extrinsic_reward
+    # 如果你希望保留入参 extrinsic_reward，请删除下面这一行
     extrinsic_reward = [0, 0]
-    # 存储结果：每行包含6个 trading rule 参数和对应的 measured_income（作为 difficulty 的参考指标）
+
+    # 存储结果：每行包含6个 trading rule 参数和对应的 measured_income
     results = []
 
-    # 这里假设对于每个 trading rule，我们调用 environment 得到 (dummy_difficulty, skill_list)
-    # 我们选取 skill_list 中最后一个值作为该样本对应的 Individual income
     for rule in trading_rules:
-        # rule 为一个6维数组
-        # 调用 environment，这里将 trading_rule 传入相应参数位置（请根据实际接口修改）
-        difficulty_dummy, skill_list = environment(initial_agent_counts, rule, round_number, reproduction_number,
-                                                   mistake_possibility, extrinsic_reward, DE_epoch_id, save_model)
-        # 选择最后一个 epoch 的 skill 作为指标
+        difficulty_dummy, skill_list = environment(
+            initial_agent_counts, rule, round_number, reproduction_number,
+            mistake_possibility, extrinsic_reward, DE_epoch_id, save_model
+        )
         measured_income = skill_list[-1]
         results.append(np.concatenate([rule, [measured_income]]))
 
     results = np.array(results)  # shape: (num_samples, 7)
 
-    # 2. 保存数据到 CSV 文件，列名为 trading_rule_1, ..., trading_rule_6, income
+    # 2. 保存数据到 CSV 文件
     col_names = [f"trading_rule_{i + 1}" for i in range(6)] + ["income"]
     df_results = pd.DataFrame(results, columns=col_names)
-    os.makedirs(os.path.dirname(output_csv), exist_ok=True)
-    df_results.to_csv(output_csv, index=False)
-    print(f"结果已保存到 {output_csv}")
 
-    # 3. 使用 t-SNE 降维，将6维 trading rule 降到2维
+    output_csv_path.parent.mkdir(parents=True, exist_ok=True)
+    df_results.to_csv(output_csv_path, index=False)
+    print(f"结果已保存到 {output_csv_path}")
+
+    # 3. t-SNE 降维：6D -> 2D
     tsne_model = TSNE(n_components=2, perplexity=5, random_state=42)
     tsne_result = tsne_model.fit_transform(trading_rules)  # shape: (num_samples, 2)
 
-    # 4. 绘制 t-SNE 散点图，颜色根据 measured_income（即 results 中最后一列）着色
+    # 4. 绘图并保存
     plt.figure(figsize=(10, 8))
     sc = plt.scatter(tsne_result[:, 0], tsne_result[:, 1], c=results[:, -1], cmap="viridis", s=50)
     plt.xlabel("t-SNE 1", fontsize=14)
@@ -867,85 +883,83 @@ def trading_rule_difficulty(initial_agent_counts,
     plt.title("t-SNE of 6D Trading Rule Samples (colored by Income)", fontsize=16)
     plt.colorbar(sc, label="Income")
     plt.tight_layout()
-    os.makedirs(os.path.dirname(tsne_output), exist_ok=True)
-    plt.savefig(tsne_output, dpi=300)
-    print(f"t-SNE图已保存至 {tsne_output}")
-    plt.show()
+
+    tsne_output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(tsne_output_path, dpi=300)
+    print(f"t-SNE图已保存至 {tsne_output_path}")
+
+    if os.getenv("AZUREML_RUN_ID") is None:
+        plt.show()
 
 
 def mistake_difficulty(initial_agent_counts,
-                            trade_rules,
-                            round_number,
-                            reproduction_number,
-                            mistake_possibility,
-                            DE_epoch_id,
-                            save_model,
-                            extrinsic_reward,
-                            num_samples=10, output_csv="mistake_possibility_difficulty.csv",
-                            plot_output="mistake_possibility_tsne.png"):
+                       trade_rules,
+                       round_number,
+                       reproduction_number,
+                       mistake_possibility,
+                       DE_epoch_id,
+                       save_model,
+                       extrinsic_reward,
+                       num_samples=10,
+                       output_csv="data/mistake_possibility_difficulty/mistake_possibility_difficulty.csv",
+                       plot_output="data/mistake_possibility_difficulty/mistake_possibility_tsne.png"):
     """
-    1. 利用拉丁超立方采样，在6维空间（每个维度取值范围[-3,3]）中采样 num_samples 个 trading rule 样本。
-    2. 对每个交易规则样本，将其传入 Environment 模块进行测试，得到 (dummy_difficulty, skill_list)。
-       我们以 skill_list 的最终值（例如最后一个 epoch 的 Individual income）作为该交易规则的“难度”参考指标。
-    3. 将每个交易规则及其对应的测得指标保存到 CSV 文件中。
-    4. 对所有采样的 6 维交易规则数据应用 t-SNE 降维，将结果在二维散点图中展示，颜色表示测得的收入值（难度指标）。
+    1. 利用拉丁超立方采样，在1维空间采样 num_samples 个 mistake possibility 样本（这里映射到[0,0.5]）。
+    2. 对每个 mistake possibility 样本，将其传入 Environment 模块进行测试，得到 (dummy_difficulty, skill_list)。
+       以 skill_list 的最终值（最后一个 epoch 的 Individual income）作为“难度/表现”参考指标。
+    3. 将每个样本及其对应的 measured_income 保存到 CSV 文件中。
+    4. 绘图：X轴 mistake possibility，Y轴 Income，颜色根据 Income 着色。
 
     参数:
       initial_agent_counts: 固定的初始代理数量
+      trade_rules: 固定交易规则
       round_number: 游戏轮数
       reproduction_number: 每轮复制数量
-      mistake_possibility: 犯错概率
+      mistake_possibility: （入参会被采样覆盖，保留是为了接口一致）
       DE_epoch_id: 设计训练轮次编号（用于环境调用）
       save_model: 是否保存模型（传递给 environment）
-      num_samples (int): 拉丁超立方采样的样本数，默认180
-      output_csv (str): 结果保存的 CSV 文件路径
-      tsne_output (str): t-SNE 可视化结果保存的图像路径
+      extrinsic_reward: 外部奖励参数（你原逻辑会被覆写为[0,0]）
+      num_samples (int): 采样数，默认10
+      output_csv (str): CSV 保存路径
+      plot_output (str): 图像保存路径
     """
-    # 1. 拉丁超立方采样：6维，每个维度均匀采样 num_samples 个点
-    sampler = qmc.LatinHypercube(d=1)
-    sample = sampler.random(n=num_samples)  # 样本在 [0,1] 区间内
-    mistake_possibility = sample * 0.5
 
+    # --- 路径解析：统一用 resolve_path ---
+    output_csv_path = resolve_path(output_csv)
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+    # df.to_csv(output_csv, index=False)
+    plot_output_path = resolve_path(plot_output)
+
+    # 1. 拉丁超立方采样：1维
+    sampler = qmc.LatinHypercube(d=1)
+    sample = sampler.random(n=num_samples)  # shape: (num_samples, 1) in [0,1]
+    mistake_possibility_samples = sample * 0.5  # 映射到 [0, 0.5]，shape: (num_samples, 1)
+
+    # NOTE: 你原代码这里强制覆写 extrinsic_reward
+    # 如果你希望保留入参 extrinsic_reward，请删除下面这一行
     extrinsic_reward = [0, 0]
-    # 存储结果：每行包含6个 trading rule 参数和对应的 measured_income（作为 difficulty 的参考指标）
+
     results = []
 
-    # 这里假设对于每个 trading rule，我们调用 environment 得到 (dummy_difficulty, skill_list)
-    # 我们选取 skill_list 中最后一个值作为该样本对应的 Individual income
-    for rule in mistake_possibility:
-        # rule 为一个6维数组
-        # 调用 environment，这里将 trading_rule 传入相应参数位置（请根据实际接口修改）
-        difficulty_dummy, skill_list = environment(initial_agent_counts, trade_rules, round_number, reproduction_number,
-                                                   rule, extrinsic_reward, DE_epoch_id, save_model)
-        # 选择最后一个 epoch 的 skill 作为指标
+    for mp in mistake_possibility_samples:
+        # mp shape: (1,) —— 直接传给 environment（你原来就是传 rule）
+        difficulty_dummy, skill_list = environment(
+            initial_agent_counts, trade_rules, round_number, reproduction_number,
+            mp, extrinsic_reward, DE_epoch_id, save_model
+        )
         measured_income = skill_list[-1]
-        results.append(np.concatenate([rule, [measured_income]]))
+        results.append(np.concatenate([mp, [measured_income]]))
 
-    results = np.array(results)  # shape: (num_samples, 7)
+    results = np.array(results)  # shape: (num_samples, 2) -> [mistake_possibility, income]
 
-    # 2. 保存数据到 CSV 文件，列名为 trading_rule_1, ..., trading_rule_6, income
-    col_names = [f"mistake_possibility_{i + 1}" for i in range(1)] + ["income"]
+    # 2. 保存 CSV
+    col_names = ["mistake_possibility"] + ["income"]
     df_results = pd.DataFrame(results, columns=col_names)
-    os.makedirs(os.path.dirname(output_csv), exist_ok=True)
-    df_results.to_csv(output_csv, index=False)
-    print(f"结果已保存到 {output_csv}")
 
-    # # 3. 使用 t-SNE 降维，将6维 trading rule 降到2维
-    # tsne_model = TSNE(n_components=1, perplexity=5, random_state=42)
-    # tsne_result = tsne_model.fit_transform(mistake_possibility)  # shape: (num_samples, 2)
-    #
-    # # 4. 绘制 t-SNE 散点图，颜色根据 measured_income（即 results 中最后一列）着色
-    # plt.figure(figsize=(10, 8))
-    # sc = plt.scatter(tsne_result[:, 0], tsne_result[:, 1], c=results[:, -1], cmap="viridis", s=50)
-    # plt.xlabel("t-SNE 1", fontsize=14)
-    # plt.ylabel("t-SNE 2", fontsize=14)
-    # plt.title("t-SNE of 6D Trading Rule Samples (colored by Income)", fontsize=16)
-    # plt.colorbar(sc, label="Income")
-    # plt.tight_layout()
-    # os.makedirs(os.path.dirname(tsne_output), exist_ok=True)
-    # plt.savefig(tsne_output, dpi=300)
-    # print(f"t-SNE图已保存至 {tsne_output}")
-    # plt.show()
+    output_csv_path.parent.mkdir(parents=True, exist_ok=True)
+    df_results.to_csv(output_csv_path, index=False)
+    print(f"结果已保存到 {output_csv_path}")
+
     # 4. 绘图：X轴 mistake possibility，Y轴 Income，颜色根据 Income 着色
     plt.figure(figsize=(10, 8))
     sc = plt.scatter(results[:, 0], results[:, 1], c=results[:, 1], cmap="viridis", s=50)
@@ -956,10 +970,100 @@ def mistake_difficulty(initial_agent_counts,
     cbar.set_label("Income", fontsize=14)
     plt.grid(True)
     plt.tight_layout()
-    os.makedirs(os.path.dirname(plot_output), exist_ok=True)
-    plt.savefig(plot_output, dpi=300)
-    print(f"图像已保存至 {plot_output}")
-    plt.show()
+
+    plot_output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(plot_output_path, dpi=300)
+    print(f"图像已保存至 {plot_output_path}")
+
+    if os.getenv("AZUREML_RUN_ID") is None:
+        plt.show()
+
+
+# def initial_agent_counts_difficulty(initial_agent_counts,
+#                                     trade_rules,  # 固定交易规则
+#                                     round_number,
+#                                     reproduction_number,
+#                                     mistake_possibility,
+#                                     extrinsic_reward,
+#                                     DE_epoch_id,
+#                                     save_model,
+#                                     num_samples=180,
+#                                     output_csv="initial_agent_counts_difficulty.csv",
+#                                     tsne_output="initial_agent_counts_tsne.png",
+#                                     counts_dim=8,
+#                                     counts_range_min=0,
+#                                     counts_range_max=50):
+#     """
+#     1. 利用拉丁超立方采样，在 counts_dim 维初始代理数量空间（每个维度取值范围 [counts_range_min, counts_range_max]）中采样 num_samples 个样本。
+#        为了模拟离散代理数量，采样后将数值取整。
+#     2. 对于每个初始代理配置，将其传入 Environment 模块（其它参数固定）测试，得到 (dummy_difficulty, skill_list)；
+#        取 skill_list 中最后一个值作为该样本对应的 Individual income，作为“difficulty”的参考指标。
+#     3. 将每个样本的初始代理配置及其对应的 measured_income 保存到 CSV 文件中。
+#     4. 使用 t-SNE 将初始代理配置（高维）降到 2 维，并绘制散点图，点颜色根据 measured_income 着色。
+#
+#     参数：
+#       trading_rule: 固定的交易规则（不变），用于环境测试
+#       round_number: 游戏轮数
+#       reproduction_number: 每轮复制数量
+#       mistake_possibility: 犯错概率
+#       extrinsic_reward: 固定的外部奖励参数
+#       DE_epoch_id: 设计训练轮次编号（传递给 environment）
+#       save_model: 是否保存模型（传递给 environment）
+#       num_samples (int): 拉丁超立方采样的样本数，默认 180
+#       output_csv (str): 结果保存的 CSV 文件路径
+#       tsne_output (str): t-SNE 可视化结果保存的图像路径
+#       counts_dim (int): 初始代理数量的维数（例如代理类型数），默认8
+#       counts_range_min (float): 每个维度的最小值，默认0
+#       counts_range_max (float): 每个维度的最大值，默认50
+#     """
+#     # 1. 拉丁超立方采样：在 counts_dim 维空间内采样 num_samples 个点
+#     sampler = qmc.LatinHypercube(d=counts_dim)
+#     sample = sampler.random(n=num_samples)  # 采样点在 [0,1]^counts_dim
+#     # 将采样点线性映射到 [counts_range_min, counts_range_max]
+#     initial_counts_samples = qmc.scale(sample, counts_range_min, counts_range_max)
+#     # 由于代理数量为整数，取整
+#     initial_counts_samples = np.rint(initial_counts_samples).astype(int)
+#
+#     # 存储结果：每行包含 counts_dim 个初始代理数量及对应的 measured_income
+#     results = []
+#
+#     # 2. 对每个初始代理配置调用 environment 得到结果（这里 trading_rule、round_number、reproduction_number、mistake_possibility、
+#     # extrinsic_reward、DE_epoch_id、save_model 均固定，只改变 initial_agent_counts）
+#     for counts in initial_counts_samples:
+#         # 注意：这里的 environment 接口需要能够接受 counts 作为初始代理配置
+#         # 例如 environment(initial_agent_counts, trading_rule, round_number, reproduction_number, mistake_possibility, extrinsic_reward, DE_epoch_id, save_model)
+#         # 请根据实际接口修改，下面假设 counts 就是 initial_agent_counts
+#         dummy_diff, skill_list = environment(counts, trade_rules, round_number, reproduction_number,
+#                                              mistake_possibility, extrinsic_reward, DE_epoch_id, save_model)
+#         # 取最后一个 epoch 的 skill（Individual income）作为指标
+#         measured_income = skill_list[-1]
+#         results.append(np.concatenate([counts, [measured_income]]))
+#
+#     results = np.array(results)  # shape: (num_samples, counts_dim+1)
+#
+#     # 3. 保存结果到 CSV 文件
+#     col_names = [f"agent_count_{i + 1}" for i in range(counts_dim)] + ["income"]
+#     df_results = pd.DataFrame(results, columns=col_names)
+#     os.makedirs(os.path.dirname(output_csv), exist_ok=True)
+#     df_results.to_csv(output_csv, index=False)
+#     print(f"结果已保存到 {output_csv}")
+#
+#     # 4. 使用 t-SNE 将初始代理配置降到 2 维，并用散点图展示，颜色根据 income 着色
+#     tsne_model = TSNE(n_components=2, perplexity=5, random_state=42)
+#     tsne_result = tsne_model.fit_transform(initial_counts_samples)
+#
+#     plt.figure(figsize=(10, 8))
+#     sc = plt.scatter(tsne_result[:, 0], tsne_result[:, 1], c=results[:, -1], cmap="viridis", s=50)
+#     plt.xlabel("t-SNE 1", fontsize=14)
+#     plt.ylabel("t-SNE 2", fontsize=14)
+#     plt.title("t-SNE of Initial Agent Counts (colored by Income)", fontsize=16)
+#     cbar = plt.colorbar(sc)
+#     cbar.set_label("Income", fontsize=14)
+#     plt.tight_layout()
+#     os.makedirs(os.path.dirname(tsne_output), exist_ok=True)
+#     plt.savefig(tsne_output, dpi=300)
+#     print(f"t-SNE图已保存至 {tsne_output}")
+#     plt.show()
 
 
 def initial_agent_counts_difficulty(initial_agent_counts,
@@ -971,8 +1075,8 @@ def initial_agent_counts_difficulty(initial_agent_counts,
                                     DE_epoch_id,
                                     save_model,
                                     num_samples=180,
-                                    output_csv="initial_agent_counts_difficulty.csv",
-                                    tsne_output="initial_agent_counts_tsne.png",
+                                    output_csv="data/initial_agent_counts_difficulty/initial_agent_counts_difficulty.csv",
+                                    tsne_output="data/initial_agent_counts_difficulty/initial_agent_counts_tsne.png",
                                     counts_dim=8,
                                     counts_range_min=0,
                                     counts_range_max=50):
@@ -999,25 +1103,31 @@ def initial_agent_counts_difficulty(initial_agent_counts,
       counts_range_min (float): 每个维度的最小值，默认0
       counts_range_max (float): 每个维度的最大值，默认50
     """
+
+    # --- 路径解析：统一用 resolve_path ---
+    output_csv_path = resolve_path(output_csv)
+    tsne_output_path = resolve_path(tsne_output)
+
     # 1. 拉丁超立方采样：在 counts_dim 维空间内采样 num_samples 个点
     sampler = qmc.LatinHypercube(d=counts_dim)
     sample = sampler.random(n=num_samples)  # 采样点在 [0,1]^counts_dim
+
     # 将采样点线性映射到 [counts_range_min, counts_range_max]
     initial_counts_samples = qmc.scale(sample, counts_range_min, counts_range_max)
+
     # 由于代理数量为整数，取整
     initial_counts_samples = np.rint(initial_counts_samples).astype(int)
 
     # 存储结果：每行包含 counts_dim 个初始代理数量及对应的 measured_income
     results = []
 
-    # 2. 对每个初始代理配置调用 environment 得到结果（这里 trading_rule、round_number、reproduction_number、mistake_possibility、
-    # extrinsic_reward、DE_epoch_id、save_model 均固定，只改变 initial_agent_counts）
+    # 2. 对每个初始代理配置调用 environment 得到结果
     for counts in initial_counts_samples:
-        # 注意：这里的 environment 接口需要能够接受 counts 作为初始代理配置
-        # 例如 environment(initial_agent_counts, trading_rule, round_number, reproduction_number, mistake_possibility, extrinsic_reward, DE_epoch_id, save_model)
-        # 请根据实际接口修改，下面假设 counts 就是 initial_agent_counts
-        dummy_diff, skill_list = environment(counts, trade_rules, round_number, reproduction_number,
-                                             mistake_possibility, extrinsic_reward, DE_epoch_id, save_model)
+        dummy_diff, skill_list = environment(
+            counts, trade_rules, round_number, reproduction_number,
+            mistake_possibility, extrinsic_reward, DE_epoch_id, save_model
+        )
+
         # 取最后一个 epoch 的 skill（Individual income）作为指标
         measured_income = skill_list[-1]
         results.append(np.concatenate([counts, [measured_income]]))
@@ -1027,9 +1137,11 @@ def initial_agent_counts_difficulty(initial_agent_counts,
     # 3. 保存结果到 CSV 文件
     col_names = [f"agent_count_{i + 1}" for i in range(counts_dim)] + ["income"]
     df_results = pd.DataFrame(results, columns=col_names)
-    os.makedirs(os.path.dirname(output_csv), exist_ok=True)
-    df_results.to_csv(output_csv, index=False)
-    print(f"结果已保存到 {output_csv}")
+
+    # ✅ 用 Path.parent.mkdir，避免 dirname=="" 的坑
+    output_csv_path.parent.mkdir(parents=True, exist_ok=True)
+    df_results.to_csv(output_csv_path, index=False)
+    print(f"结果已保存到 {output_csv_path}")
 
     # 4. 使用 t-SNE 将初始代理配置降到 2 维，并用散点图展示，颜色根据 income 着色
     tsne_model = TSNE(n_components=2, perplexity=5, random_state=42)
@@ -1043,10 +1155,15 @@ def initial_agent_counts_difficulty(initial_agent_counts,
     cbar = plt.colorbar(sc)
     cbar.set_label("Income", fontsize=14)
     plt.tight_layout()
-    os.makedirs(os.path.dirname(tsne_output), exist_ok=True)
-    plt.savefig(tsne_output, dpi=300)
-    print(f"t-SNE图已保存至 {tsne_output}")
-    plt.show()
+
+    # ✅ 同理：确保目录存在，再保存
+    tsne_output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(tsne_output_path, dpi=300)
+    print(f"t-SNE图已保存至 {tsne_output_path}")
+
+    # 云端（Azure ML）通常不要 show()
+    if os.getenv("AZUREML_RUN_ID") is None:
+        plt.show()
 
 
 
@@ -1060,8 +1177,8 @@ def plot_training_process_for_trade_rule_groups(initial_agent_counts,
                                                 DE_epoch_id,
                                                 save_model,
                                                 num_epochs,
-                                                output_csv="training_process_results_high.csv",
-                                                output_plot="training_process.png"):
+                                                output_csv="data/training_process_results_high.csv",
+                                                output_plot="data/training_process.png"):
     """
     测试不同交易规则组对 agent 训练过程中 Individual income 的影响。
 
@@ -1073,12 +1190,14 @@ def plot_training_process_for_trade_rule_groups(initial_agent_counts,
       extrinsic_reward: 固定的外部奖励参数
       DE_epoch_id: 设计训练轮次编号（用于环境调用）
       save_model: 是否保存模型（传递给 environment）
-      trade_rule_groups (dict): 一个字典，键为组名（例如 "Low", "Medium", "High"），值为对应的6维 trading rule 向量
       num_epochs (int): 训练的 epoch 数量（例如 40）
       output_csv (str): 保存训练过程中各 epoch 结果的 CSV 文件路径
       output_plot (str): 保存绘制图像的文件路径
     """
-    # 用于存储所有组的训练过程数据，每行包括: group, epoch, income
+
+    # --- 路径解析：统一用 resolve_path ---
+    output_csv_path = resolve_path(output_csv)
+    output_plot_path = resolve_path(output_plot)
 
     trade_rule_groups = {
         "Low": np.array([-1.177282578, -1.482345946, -1.087466925, -2.907925356, -1.252640696, -0.788812408]),
@@ -1086,51 +1205,21 @@ def plot_training_process_for_trade_rule_groups(initial_agent_counts,
         "High": np.array([-0.230105264, -2.389890292, -1.183604627, 2.589601439, 2.999660671, 2.272005864])
     }
 
-    # trade_rule_groups = {
-    #     "Low 1": np.array([]),
-    #     "Low 2": np.array([]),
-    #     "Low 3": np.array([]),
-    #     "Low 4": np.array([]),
-    #     "Low 5": np.array([])
-    # }
-    # trade_rule_groups = {
-    #     "High 1": np.array([-1.970610399,	0.367538147,	-1.955744721,	2.722505338,	2.885549556,	1.467340952]),
-    #     "High 2": np.array([-1.970610399,	0.367538147,	-1.955744721,	2.722505338,	2.885549556,	1.467340952]),
-    #     "High 3": np.array([0.482584307,	-1.640214185,	2.919970043,	2.744662269,	-2.883049343,	0.47393471]),
-    #     "High 4": np.array([-1.759425565,	0.774120033,	-0.305843851,	2.002150144,	2.913378955,	2.410853437]),
-    #     "High 5": np.array([2.890421738,	1.332293284,	2.868411304,	2.06078246,	-2.307293618,	1.149497733])
-    # }
-    # trade_rule_groups = {
-    #     "Medium 1": np.array([    -2.570783182,0.883897888,- 1.761860351,- 0.026318802,2.86499443, - 1.949292571]),
-    #     "Medium 2": np.array([    -2.122077561,- 0.378099919,- 0.786817044,0.764101232,1.014065489,0.357228063]),
-    #     "Medium 3": np.array([    -0.484877983, - 2.883851145, - 0.738393807,1.345635969,0.642108088,- 0.359373669]),
-    #     "Medium 4": np.array([    -0.41097735,2.361120932,- 0.386333482,- 1.977072218,1.475039731,0.702690951]),
-    #     "Medium 5": np.array([    -1.105055502,1.240737673,- 1.471400858,- 2.178101685,0.557541218,2.492708917])
-    # }
-    # trade_rule_groups = {
-    #     "Low 1": np.array([-1.177282578, - 1.482345946, - 1.087466925, - 2.907925356, - 1.252640696, - 0.788812408]),
-    #     "Low 2": np.array([-2.926014838, - 0.063973044, - 2.550610722, - 1.484016735, - 0.727814734, - 0.695829967]),
-    #     "Low 3": np.array([-2.393065458, - 2.44798662, 1.399448713, - 2.960723016, - 0.68905033, - 2.758099553]),
-    #     "Low 4": np.array([2.397393453, - 2.412930847, - 2.286878572, - 0.804228109, - 1.305893385, - 1.581059454]),
-    #     "Low 5": np.array([-0.533547143, - 2.751772241, - 2.221207739, 0.582099827, - 1.386868919, - 1.036599245])
-    # }
-
     records = []
 
     # 遍历每个交易规则组
     for group_name, trading_rule in trade_rule_groups.items():
         print(f"正在测试组 {group_name} 的交易规则：{trading_rule}")
-        # 假设 environment 接口为：
-        # evaluation = environment(initial_agent_counts, trading_rule, round_number, reproduction_number, mistake_possibility, extrinsic_reward, DE_epoch_id, save_model)
-        # evaluation 中假设包含 key "individual_income"，它是一个列表，长度为 num_epochs
-        dummy_diff, skill_list = environment(initial_agent_counts, trading_rule, round_number, reproduction_number,
-                                 mistake_possibility, extrinsic_reward, DE_epoch_id, save_model)
-        # 这里假设 evaluation["individual_income"] 返回各 epoch 的收入（或只返回最后一个值，如果你希望记录所有 epoch，就要求 environment 返回一个列表）
+
+        dummy_diff, skill_list = environment(
+            initial_agent_counts, trading_rule, round_number, reproduction_number,
+            mistake_possibility, extrinsic_reward, DE_epoch_id, save_model
+        )
+
         income_over_epochs = skill_list
         if len(income_over_epochs) != num_epochs:
             print(f"警告：组 {group_name} 返回的 epoch 数 ({len(income_over_epochs)}) 不等于预期的 {num_epochs}")
 
-        # 记录每个 epoch 的结果
         for epoch in range(len(income_over_epochs)):
             records.append({
                 "group": group_name,
@@ -1140,21 +1229,23 @@ def plot_training_process_for_trade_rule_groups(initial_agent_counts,
 
     # 保存所有数据到 CSV
     df_records = pd.DataFrame(records)
-    os.makedirs(os.path.dirname(output_csv), exist_ok=True)
-    df_records.to_csv(output_csv, index=False)
-    print(f"训练过程数据已保存至 {output_csv}")
+    output_csv_path.parent.mkdir(parents=True, exist_ok=True)
+    df_records.to_csv(output_csv_path, index=False)
+    print(f"训练过程数据已保存至 {output_csv_path}")
 
-    # 绘制图像：X轴 epoch，Y轴 income，每个组用不同颜色显示曲线
+    # 绘制图像：X轴 epoch，Y轴 income
     plt.figure(figsize=(10, 6))
     groups = df_records["group"].unique()
-    # 为不同组指定颜色，可以自定义
+
+    # 你原来用了自定义颜色映射（保留）
     color_map = {"Low": "red", "Medium": "blue", "High": "green"}
+
     for group in groups:
-        group_data = df_records[df_records["group"] == group]
-        # 按 epoch 排序
-        group_data = group_data.sort_values("epoch")
-        plt.plot(group_data["epoch"], group_data["income"],
-                 marker='o', linewidth=2, color=color_map.get(group, None), label=group)
+        group_data = df_records[df_records["group"] == group].sort_values("epoch")
+        plt.plot(
+            group_data["epoch"], group_data["income"],
+            marker='o', linewidth=2, color=color_map.get(group, None), label=group
+        )
 
     plt.xlabel("Epoch", fontsize=14)
     plt.ylabel("Individual Income", fontsize=14)
@@ -1162,18 +1253,31 @@ def plot_training_process_for_trade_rule_groups(initial_agent_counts,
     plt.legend(title="Trading Rule Group")
     plt.grid(True, linestyle="--", alpha=0.7)
     plt.tight_layout()
-    os.makedirs(os.path.dirname(output_plot), exist_ok=True)
-    plt.savefig(output_plot, dpi=300)
-    print(f"训练过程图已保存至 {output_plot}")
-    plt.show()
+
+    output_plot_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_plot_path, dpi=300)
+    print(f"训练过程图已保存至 {output_plot_path}")
+
+    if os.getenv("AZUREML_RUN_ID") is None:
+        plt.show()
 
 
 
 def round_number_difficulty(initial_agent_counts, trade_rules, reproduction_number, mistake_possibility,
                             extrinsic_reward, DE_epoch_id, save_model,
                             num_samples=180,
-                            output_csv="./data/round_number_difficulty/round_number_difficulty.csv",
-                            plot_output="./data/round_number_difficulty/round_number_tsne.png"):
+                            output_csv=resolve_path(
+                                os.getenv(
+                                    "RULEGEN_ROUND_DIFF_CSV",
+                                    "outputs/round_number_difficulty/round_number_difficulty.csv"
+                                )
+                            ),
+                            plot_output = resolve_path(
+                                os.getenv(
+                                    "RULEGEN_ROUND_DIFF_PLOT",
+                                    "outputs/round_number_difficulty/round_number_tsne.png"
+                                )
+                            )):
     """
     1. 使用拉丁超立方采样，在1维空间中采样 num_samples 个点，
        将采样结果线性映射到 [1,5]，得到 180 个 round_number 样本；
@@ -1244,8 +1348,18 @@ def round_number_difficulty(initial_agent_counts, trade_rules, reproduction_numb
 def reproduction_number_difficulty(initial_agent_counts, trade_rules, round_number, mistake_possibility,
                                    extrinsic_reward, DE_epoch_id, save_model,
                                    num_samples=10,
-                                   output_csv="./data/reproduction_number_difficulty/reproduction_number_difficulty.csv",
-                                   plot_output="./data/reproduction_number_difficulty/reproduction_number_tsne.png"):
+                                   output_csv=resolve_path(
+                                       os.getenv(
+                                           "RULEGEN_REPRO_DIFF_CSV",
+                                           "outputs/reproduction_number_difficulty/reproduction_number_difficulty.csv"
+                                       )
+                                   ),
+                                   plot_output = resolve_path(
+                                        os.getenv(
+                                            "RULEGEN_REPRO_DIFF_PLOT",
+                                            "outputs/reproduction_number_difficulty/reproduction_number_tsne.png"
+                                        )
+                                   )):
     """
     1. 使用拉丁超立方采样，在1维空间中采样 num_samples 个 reproduction_number 样本，
        将采样结果线性映射到 [1, 10]，得到连续值后取整。
@@ -1343,7 +1457,7 @@ if cuda:
     evaluator.cuda()
     environment.cuda()
     MSELoss.cuda()
-    device = torch.device('cuda')
+    # device = torch.device('cuda')
 
 print(cuda)
 
@@ -1574,7 +1688,8 @@ for DE_epoch_id in range(opt.DE_train_episode):
     #                                plot_output="./data/reproduction_number_difficulty/reproduction_number_tsne.png")
 
     if save_model:
-        PATH = "./designer/designer.pth"
+        PATH = resolve_path("ml/designer/designer.pth")
+
         torch.save(ruleDesigner.state_dict(), PATH)
     if printSER:
         print('----- SER training, Epoch ID: ', DE_epoch_id, ' -----')
@@ -1587,9 +1702,5 @@ save_extrinsic_reward_results_to_csv('extrinsic_reward_A.csv', epoch_list, rewar
 save_extrinsic_reward_results_to_csv('extrinsic_reward_B.csv', epoch_list, reward_cheat_list)
 print("=========done========")
 
-# 在代码末尾添加
-duration = 1000  # 持续时间，毫秒
-freq = 440  # 频率，赫兹
-winsound.Beep(freq, duration)
 
 

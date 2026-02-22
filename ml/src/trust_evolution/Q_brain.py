@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -5,6 +7,25 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 from agent import Agent
+
+
+def repo_root() -> Path:
+    """
+    从当前文件位置向上找，直到找到包含 'ml' 目录或 '.git' 的目录。
+    """
+    p = Path(__file__).resolve()
+    for parent in [p] + list(p.parents):
+        if (parent / "ml").exists() or (parent / ".git").exists():
+            return parent
+    return Path.cwd()
+
+def resolve_path(path_like: str | Path, base: Path | None = None) -> Path:
+    """
+    把相对路径解析为绝对路径：默认相对 repo_root()
+    """
+    base = base or repo_root()
+    path = Path(path_like)
+    return path if path.is_absolute() else (base / path).resolve()
 
 class QLearningAgent(Agent):
     def __init__(self, id=0, actions=['cheat', 'cooperation'], shared_q_table=None, learning_rate=0.01, reward_decay=0.9, e_greedy=0.9):
@@ -22,7 +43,9 @@ class QLearningAgent(Agent):
         self.tradeRecords = {}  # 初始化交易记录
 
     def set_q_table_by_id(self, id):
-        filepath = Path('agents/' + str(id) + '.csv')
+        filepath = resolve_path(f"ml/agents/{id}.csv")
+        # 或如果你的 agents 实际在 ml/src/trust_evolution/agents：
+        # filepath = resolve_path(f"ml/src/trust_evolution/agents/{id}.csv")
         self.q_table = pd.read_csv(filepath, index_col=0)
 
     def get_q_table(self):
@@ -143,10 +166,14 @@ class QLearningAgent(Agent):
 
         if save:
             # 创建目录（如果不存在）
-            os.makedirs('visual', exist_ok=True)
-            # 保存图片到文件
-            plt.savefig(f'visual/q_table_epoch_{epoch}.png')
+            out_dir = resolve_path("ml/data/visual")  # 如果你想写到 ml/data
+            # 或 out_dir = resolve_path("outputs/visual")  # 如果你想写到 Azure artifacts
+            out_dir.mkdir(parents=True, exist_ok=True)
+
+            plt.savefig(out_dir / f"q_table_epoch_{epoch}.png")
             plt.close()
         else:
-            # 显示图片
-            plt.show()
+            if os.getenv("AZUREML_RUN_ID") is None:
+                plt.show()
+            else:
+                plt.close()

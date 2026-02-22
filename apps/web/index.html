@@ -1,5 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
+
+<script>
+  // === Static-only mode for Azure Static Web Apps ===
+  // true: 不调用 Flask 后端（SWA 上先看页面）
+  // false: 本地联调时再打开后端调用
+  const STATIC_ONLY = true;
+
+  const API_BASE = STATIC_ONLY ? "" : "http://127.0.0.1:5000";
+  function apiUrl(path) {
+    if (!API_BASE) return null;
+    return API_BASE.replace(/\/$/, "") + path;
+  }
+</script>
+
 <head>
   <meta charset="utf-8">
   <title>Merged Dashboard – Combined</title>
@@ -19,9 +33,9 @@
   <!-- Plotly -->
   <script src="https://cdn.plot.ly/plotly-2.18.2.min.js"></script>
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="/css/style.css">
   <!-- 如果原有业务逻辑在 script.js 中，请保持加载 -->
-  <script src="../js/script.js"></script>
+  <script src="/js/script.js"></script>
 
 </head>
 <body>
@@ -386,7 +400,12 @@ strategyButton.once('change', function(val) {
   }, 0);
 
   // 使用 AJAX (fetch) 将设置数据发送给 Flask 后端
-  fetch('http://127.0.0.1:5000/run_program', {
+  const runUrl = apiUrl("/run_program");
+if (!runUrl) {
+  console.warn("STATIC_ONLY enabled: skip /run_program");
+  return;
+}
+fetch(runUrl, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify(settings)
@@ -778,7 +797,12 @@ strategyButton.once('change', function(val) {
 
       // 8) 定义函数：从 Excel 数据更新所有图表
       function updateChartsFromExcel() {
-        fetch("http://127.0.0.1:5000/get_excel_data")
+        const url = apiUrl("/get_excel_data");
+if (!url) {
+  console.warn("STATIC_ONLY enabled: skip /get_excel_data");
+  return;
+}
+fetch(url)
           .then(response => response.json())
           .then(excelData => {
             console.log("Excel data received:", excelData);
@@ -870,7 +894,12 @@ strategyButton.once('change', function(val) {
       updateChartsFromExcel();
 
       // 10) SSE 监听 Excel更新通知
-      var eventSource = new EventSource("http://127.0.0.1:5000/stream");
+      const sseUrl = apiUrl("/stream");
+if (!sseUrl) {
+  console.warn("STATIC_ONLY enabled: skip SSE /stream");
+  return;
+}
+var eventSource = new EventSource(sseUrl);
       eventSource.onmessage = function(event) {
         var data = JSON.parse(event.data);
         console.log("Received SSE update:", data);
@@ -898,13 +927,13 @@ strategyButton.once('change', function(val) {
           <div class="row">
             <div class="col-md-4" style="margin-bottom:20px;">
               <!-- NPC 和 Human 策略图保持不变 -->
-              <img src="../image/NPC_strategies.png" alt="NPC Strategy" style="width:58%; height:auto;">
-              <img src="../image/human_strategy.png" alt="Human Strategy" style="width:35%; height:auto;">
+              <img src="/image/NPC_strategies.png" alt="NPC Strategy" style="width:58%; height:auto;">
+              <img src="/image/human_strategy.png" alt="Human Strategy" style="width:35%; height:auto;">
             </div>
             <div class="col-md-4" style="margin-bottom:20px;">
               <!-- AI Strategy，初始为 AI_strategies.png -->
               <img id="aiStrategyImg" 
-                  src="../image/AI_strategies.png" 
+                  src="/image/AI_strategies.png" 
                   alt="AI Strategy" 
                   style="width:100%; height:auto;">
             </div>
@@ -918,7 +947,12 @@ strategyButton.once('change', function(val) {
         var img = container.getElement().find('#aiStrategyImg')[0];
         if (img) {
           // 加上时间戳防止浏览器缓存
-          var newSrc = "http://127.0.0.1:5000/q_table_heatmap.png?" + new Date().getTime();
+          const imgBase = apiUrl("/q_table_heatmap.png");
+if (!imgBase) {
+  console.warn("STATIC_ONLY enabled: keep default AI_strategies.png");
+  return;
+}
+var newSrc = imgBase + "?" + new Date().getTime();
           img.src = newSrc;
           console.log("AI Strategy image updated to:", newSrc);
         } else {
@@ -1057,7 +1091,12 @@ myLayout.registerComponent('evaluationVisualization', function(container, state)
 
   // 定义函数：从后端获取 test_results.xlsx 数据，并更新各图表
   function updateChartsFromExcel() {
-    fetch("http://127.0.0.1:5000/get_test_results")
+    const url = apiUrl("/get_test_results");
+if (!url) {
+  console.warn("STATIC_ONLY enabled: skip /get_test_results");
+  return;
+}
+fetch(url)
       .then(response => response.json())
       .then(excelData => {
         console.log("Test results Excel data received:", excelData);
