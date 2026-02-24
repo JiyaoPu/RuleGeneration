@@ -1,0 +1,10 @@
+{
+  "name": "rulegeneration-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend API for RuleGeneration",
+  "main": "index.js",
+  "dependencies": {
+    "@azure/functions": "^4.0.0"
+  }
+}
