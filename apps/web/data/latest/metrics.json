@@ -1,0 +1,37 @@
+{
+    "run_id": "manual_test_001",
+    "status": "succeeded",
+    "last_updated": "2026-02-25T12:30:00Z",
+  
+    "epochs": [
+      {
+        "epoch": 1,
+        "initial_agent_counts": [18,1,1,1,1,1,1,1],
+        "trade_rules": [0,3,2,1,4,2],
+        "round_number": 10,
+        "reproduction_number": 2,
+        "mistake_possibility": 0.05,
+        "cooperation_rate": [0.8,0.6,0.7,0.9,0.5,0.85,0.65,0.75,0.72],
+        "individual_income": [200,180,220,210,190,230,205,215,205],
+        "gini_coefficient": [0.3,0.4,0.35,0.45,0.32,0.38,0.41,0.37,0.36]
+      },
+      {
+        "epoch": 2,
+        "initial_agent_counts": [17,2,1,1,1,1,1,1],
+        "trade_rules": [1,2,2,1,3,2],
+        "round_number": 10,
+        "reproduction_number": 3,
+        "mistake_possibility": 0.04,
+        "cooperation_rate": [0.82,0.61,0.69,0.91,0.52,0.83,0.67,0.76,0.73],
+        "individual_income": [210,185,225,215,195,235,210,220,212],
+        "gini_coefficient": [0.31,0.39,0.34,0.44,0.33,0.37,0.40,0.36,0.35]
+      }
+    ],
+  
+    "final": {
+      "epoch": 2,
+      "cooperation_rate_overall": 0.73,
+      "avg_income_overall": 212,
+      "gini_overall": 0.35
+    }
+  }
