@@ -3,25 +3,29 @@ const path = require("path");
 
 module.exports = async function (context, req) {
   try {
-    // repo 根目录
-    const repoRoot = path.resolve(__dirname, "..", "..", "..");
+    const metricsPath = path.join(
+      __dirname,
+      "..",
+      "..",
+      "data",
+      "latest",
+      "metrics.json"
+    );
 
-    // 读取 apps/web/data/metrics.json
-    const metricsPath = path.join(repoRoot, "apps", "web", "data", "metrics.json");
-
-    let data = {};
-
-    if (fs.existsSync(metricsPath)) {
-      const raw = fs.readFileSync(metricsPath, "utf-8");
-      data = JSON.parse(raw);
-    } else {
-      // 如果不存在，返回默认 mock 数据
-      data = {
-        status: "no_data",
-        message: "metrics.json not found",
-        timestamp: new Date().toISOString()
+    if (!fs.existsSync(metricsPath)) {
+      context.res = {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+        body: {
+          status: "no_data",
+          message: "metrics.json not found"
+        }
       };
+      return;
     }
+
+    const raw = fs.readFileSync(metricsPath, "utf8");
+    const data = JSON.parse(raw);
 
     context.res = {
       status: 200,
@@ -33,10 +37,11 @@ module.exports = async function (context, req) {
     };
 
   } catch (error) {
-    context.log("Error in /latest:", error);
+    context.log("Error in /api/latest:", error);
 
     context.res = {
       status: 500,
+      headers: { "Content-Type": "application/json" },
       body: {
         error: "Failed to load latest metrics"
       }

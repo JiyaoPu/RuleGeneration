@@ -8,20 +8,29 @@ module.exports = async function (context, req) {
     context.log("Training request received:");
     context.log(JSON.stringify(settings, null, 2));
 
-    // ======== 示例行为：保存 settings 到文件 ========
-    // 你可以删掉这段，如果不想写本地文件
+    // ===== 正确的 SWA 路径 =====
+    const runDir = path.join(
+      __dirname,
+      "..",
+      "..",
+      "data",
+      "run"
+    );
 
-    const repoRoot = path.resolve(__dirname, "..", "..", "..");
-    const dataDir = path.join(repoRoot, "apps", "web", "data");
-
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
+    // 确保目录存在
+    if (!fs.existsSync(runDir)) {
+      fs.mkdirSync(runDir, { recursive: true });
     }
 
-    const settingsPath = path.join(dataDir, "last_run_settings.json");
-    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+    const settingsPath = path.join(
+      runDir,
+      "last_run_settings.json"
+    );
 
-    // ======== 返回响应 ========
+    fs.writeFileSync(
+      settingsPath,
+      JSON.stringify(settings, null, 2)
+    );
 
     context.res = {
       status: 200,
@@ -37,10 +46,13 @@ module.exports = async function (context, req) {
     };
 
   } catch (error) {
-    context.log("Error in /run:", error);
+    context.log("Error in /api/run:", error);
 
     context.res = {
       status: 500,
+      headers: {
+        "Content-Type": "application/json"
+      },
       body: {
         error: "Failed to process run request"
       }
