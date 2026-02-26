@@ -29,7 +29,7 @@ jobs:
           app_location: "./apps/web"
 
           # ✅ Functions backend (IMPORTANT)
-          api_location: "./apps/web/api"
+          api_location: ""
 
           # ✅ Pure static app: no build output dir
           output_location: ""

@@ -1,10 +1,13 @@
 {
-  "name": "rgn-swa-api",
+  "name": "rgn-backend",
   "version": "1.0.0",
   "private": true,
-  "main": "index.js",
-  "engines": {
-    "node": "20.x"
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
   },
-  "dependencies": {}
+  "dependencies": {
+    "express": "^4.19.2"
+  }
 }

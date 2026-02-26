@@ -1,0 +1,39 @@
+name: Deploy RGNFunction (App Service)
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: RGNFunction
+  NODE_VERSION: "18.x"
+  APP_PATH: "apps/web/api"
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        working-directory: ${{ env.APP_PATH }}
+        run: npm ci || npm install
+
+      - name: Zip artifact
+        working-directory: ${{ env.APP_PATH }}
+        run: |
+          zip -r api.zip . -x "**/node_modules/**"
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ${{ env.APP_PATH }}/api.zip
