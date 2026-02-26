@@ -1,0 +1,8 @@
+{
+    "routes": [
+      {
+        "route": "/api/*",
+        "rewrite": "https://rgnfunction-ecdqdxfffqcmb0e5.ukwest-01.azurewebsites.net/api/*"
+      }
+    ]
+  }
