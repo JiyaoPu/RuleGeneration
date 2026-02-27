@@ -23,10 +23,13 @@ document.addEventListener("DOMContentLoaded", function () {
     const url = apiUrl("/latest");
     if (!url) return null;
 
-    const res = await fetch(url + (url.includes("?") ? "&" : "?") + "ts=" + Date.now(), {
-      method: "GET",
-      headers: { Accept: "application/json", "Cache-Control": "no-cache" },
-    });
+    const res = await fetch(
+      url + (url.includes("?") ? "&" : "?") + "ts=" + Date.now(),
+      {
+        method: "GET",
+        headers: { Accept: "application/json", "Cache-Control": "no-cache" },
+      }
+    );
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
@@ -56,20 +59,52 @@ document.addEventListener("DOMContentLoaded", function () {
             type: "stack",
             width: 30,
             content: [
-              { type: "component", componentName: "RuleSetting", title: "Rule Setting" },
-              { type: "component", componentName: "StrategySetting", title: "Strategy Setting" },
-              { type: "component", componentName: "EvaluationExpectation", title: "Evaluation Expectation" },
-              { type: "component", componentName: "DesignerEvaluator", title: "Designer & Evaluator" },
-              { type: "component", componentName: "AgentTraining", title: "Agent Training" },
+              {
+                type: "component",
+                componentName: "RuleSetting",
+                title: "Rule Setting",
+              },
+              {
+                type: "component",
+                componentName: "StrategySetting",
+                title: "Strategy Setting",
+              },
+              {
+                type: "component",
+                componentName: "EvaluationExpectation",
+                title: "Evaluation Expectation",
+              },
+              {
+                type: "component",
+                componentName: "DesignerEvaluator",
+                title: "Designer & Evaluator",
+              },
+              {
+                type: "component",
+                componentName: "AgentTraining",
+                title: "Agent Training",
+              },
             ],
           },
           {
             type: "stack",
             width: 50,
             content: [
-              { type: "component", componentName: "ruleVisualization", title: "Rule Visualization" },
-              { type: "component", componentName: "strategyVisualization", title: "Strategy Visualization" },
-              { type: "component", componentName: "evaluationVisualization", title: "Evaluation Visualization" },
+              {
+                type: "component",
+                componentName: "ruleVisualization",
+                title: "Rule Visualization",
+              },
+              {
+                type: "component",
+                componentName: "strategyVisualization",
+                title: "Strategy Visualization",
+              },
+              {
+                type: "component",
+                componentName: "evaluationVisualization",
+                title: "Evaluation Visualization",
+              },
             ],
           },
         ],
@@ -77,7 +112,10 @@ document.addEventListener("DOMContentLoaded", function () {
     ],
   };
 
-  var myLayout = new GoldenLayout(config, document.getElementById("layoutContainer"));
+  var myLayout = new GoldenLayout(
+    config,
+    document.getElementById("layoutContainer")
+  );
 
   /********** 左侧区域组件注册 **********/
   // 1. RuleSetting（Rule Setting）
@@ -216,7 +254,9 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     // Round Number
-    var roundNumberSliderDiv = container.getElement().find("#roundNumberSlider")[0];
+    var roundNumberSliderDiv = container
+      .getElement()
+      .find("#roundNumberSlider")[0];
     var roundNumberInput = container.getElement().find("#roundNumberInput")[0];
     var roundNumberSlider = new Nexus.Slider(roundNumberSliderDiv, {
       size: [120, 15],
@@ -239,17 +279,24 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     // Reproduction Number
-    var reproductionNumberSliderDiv = container.getElement().find("#reproductionNumberSlider")[0];
-    var reproductionNumberInput = container.getElement().find("#reproductionNumberInput")[0];
-    var reproductionNumberSlider = new Nexus.Slider(reproductionNumberSliderDiv, {
-      size: [120, 15],
-      mode: "absolute",
-      min: 0,
-      max: 20,
-      step: 1,
-      value: 0,
-      orientation: "horizontal",
-    });
+    var reproductionNumberSliderDiv = container
+      .getElement()
+      .find("#reproductionNumberSlider")[0];
+    var reproductionNumberInput = container
+      .getElement()
+      .find("#reproductionNumberInput")[0];
+    var reproductionNumberSlider = new Nexus.Slider(
+      reproductionNumberSliderDiv,
+      {
+        size: [120, 15],
+        mode: "absolute",
+        min: 0,
+        max: 20,
+        step: 1,
+        value: 0,
+        orientation: "horizontal",
+      }
+    );
     reproductionNumberSlider.on("change", function (val) {
       reproductionNumberInput.value = val;
     });
@@ -262,8 +309,12 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     // Mistake Possibility
-    var mistakePossibilityDialDiv = container.getElement().find("#mistakePossibilityDial")[0];
-    var mistakePossibilityInput = container.getElement().find("#mistakePossibilityInput")[0];
+    var mistakePossibilityDialDiv = container
+      .getElement()
+      .find("#mistakePossibilityDial")[0];
+    var mistakePossibilityInput = container
+      .getElement()
+      .find("#mistakePossibilityInput")[0];
     var mistakePossibilityDial = new Nexus.Dial(mistakePossibilityDialDiv, {
       size: [60, 60],
       interaction: "radial",
@@ -291,7 +342,9 @@ document.addEventListener("DOMContentLoaded", function () {
       state: true,
     });
     fixedRuleToggle.on("change", function () {
-      document.getElementById("hiddenFixedRule").value = fixedRuleToggle.state ? "True" : "False";
+      document.getElementById("hiddenFixedRule").value = fixedRuleToggle.state
+        ? "True"
+        : "False";
     });
   });
 
@@ -323,7 +376,9 @@ document.addEventListener("DOMContentLoaded", function () {
     `;
     container.getElement().html(html);
 
-    var humanPlayerStrategySetting = container.getElement().find("#humanPlayerSelect")[0];
+    var humanPlayerStrategySetting = container
+      .getElement()
+      .find("#humanPlayerSelect")[0];
     var aiTypeStrategySetting = container.getElement().find("#aiTypeSelect")[0];
 
     var humanPlayerSelect = new Nexus.Select(humanPlayerStrategySetting, {
@@ -332,7 +387,8 @@ document.addEventListener("DOMContentLoaded", function () {
     });
     humanPlayerSelect.value = 0;
     humanPlayerSelect.on("change", function () {
-      document.getElementById("hiddenHumanPlayer").value = humanPlayerSelect.value;
+      document.getElementById("hiddenHumanPlayer").value =
+        humanPlayerSelect.value;
     });
 
     var aiTypeSelect = new Nexus.Select(aiTypeStrategySetting, {
@@ -352,7 +408,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     strategyButton.once("change", function () {
       var hintElement = document.getElementById("buttonHint");
-      if (hintElement) hintElement.innerText = "Program is running, Please wait.";
+      if (hintElement)
+        hintElement.innerText = "Program is running, Please wait.";
 
       var settingSelectors = [
         "#RuleSetting input",
@@ -368,20 +425,28 @@ document.addEventListener("DOMContentLoaded", function () {
         settings[key] = input.value;
       });
 
-      // download settings.txt
-      var text = "";
-      for (var key in settings) text += key + ": " + settings[key] + "\n";
-      var blob = new Blob([text], { type: "text/plain" });
-      var url = window.URL.createObjectURL(blob);
-      var a = document.createElement("a");
-      a.href = url;
-      a.download = "settings.txt";
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(function () {
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-      }, 0);
+      // ✅ send settings to backend to persist in Blob (run/settings.json & run/settings.txt)
+      const saveUrl = apiUrl("/settings");
+      if (!saveUrl) {
+        console.warn("STATIC_ONLY enabled: skip /settings");
+        return;
+      }
+
+      fetch(saveUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      })
+        .then(async (r) => {
+          const data = await r.json().catch(() => ({}));
+          if (!r.ok)
+            throw new Error(
+              `POST /settings failed: ${r.status} ${JSON.stringify(data)}`
+            );
+          console.log("Settings saved:", data);
+          return data;
+        })
+        .catch((err) => console.error("Save settings error:", err));
 
       // 发送到后端（你后续会改成触发 AML）
       const runUrl = apiUrl("/run");
@@ -401,8 +466,10 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   // 3. EvaluationExpectation（Evaluation Expectation）
-  myLayout.registerComponent("EvaluationExpectation", function (container, state) {
-    var html = `
+  myLayout.registerComponent(
+    "EvaluationExpectation",
+    function (container, state) {
+      var html = `
       <div id="EvaluationExpectation">
         <h2>Evaluation Expectation</h2>
         <div class="evaluation-group">
@@ -431,77 +498,99 @@ document.addEventListener("DOMContentLoaded", function () {
         </div>
       </div>
     `;
-    container.getElement().html(html);
+      container.getElement().html(html);
 
-    var cooperationRateDialDiv = container.getElement().find("#cooperationRateDial")[0];
-    var cooperationRateInput = container.getElement().find("#cooperationRateInput")[0];
-    var cooperationRateDial = new Nexus.Dial(cooperationRateDialDiv, {
-      size: [75, 75],
-      interaction: "radial",
-      mode: "relative",
-      min: 0,
-      max: 100,
-      step: 1,
-      value: 50,
-    });
-    cooperationRateDial.on("change", function (val) {
-      cooperationRateInput.value = Math.round(val);
-    });
-    cooperationRateInput.addEventListener("change", function () {
-      var newVal = parseFloat(cooperationRateInput.value);
-      if (isNaN(newVal)) newVal = 0;
-      if (newVal < 0) newVal = 0;
-      if (newVal > 100) newVal = 100;
-      cooperationRateDial.value = newVal;
-    });
-    new Nexus.Toggle(container.getElement().find("#cooperationRateToggle")[0], { size: [40, 20], state: false });
+      var cooperationRateDialDiv = container
+        .getElement()
+        .find("#cooperationRateDial")[0];
+      var cooperationRateInput = container
+        .getElement()
+        .find("#cooperationRateInput")[0];
+      var cooperationRateDial = new Nexus.Dial(cooperationRateDialDiv, {
+        size: [75, 75],
+        interaction: "radial",
+        mode: "relative",
+        min: 0,
+        max: 100,
+        step: 1,
+        value: 50,
+      });
+      cooperationRateDial.on("change", function (val) {
+        cooperationRateInput.value = Math.round(val);
+      });
+      cooperationRateInput.addEventListener("change", function () {
+        var newVal = parseFloat(cooperationRateInput.value);
+        if (isNaN(newVal)) newVal = 0;
+        if (newVal < 0) newVal = 0;
+        if (newVal > 100) newVal = 100;
+        cooperationRateDial.value = newVal;
+      });
+      new Nexus.Toggle(
+        container.getElement().find("#cooperationRateToggle")[0],
+        { size: [40, 20], state: false }
+      );
 
-    var individualIncomeDialDiv = container.getElement().find("#individualIncomeDial")[0];
-    var individualIncomeInput = container.getElement().find("#individualIncomeInput")[0];
-    var individualIncomeDial = new Nexus.Dial(individualIncomeDialDiv, {
-      size: [75, 75],
-      interaction: "radial",
-      mode: "relative",
-      min: 0,
-      max: 10,
-      step: 0.01,
-      value: 2,
-    });
-    individualIncomeDial.on("change", function (val) {
-      individualIncomeInput.value = val.toFixed(2);
-    });
-    individualIncomeInput.addEventListener("change", function () {
-      var newVal = parseFloat(individualIncomeInput.value);
-      if (isNaN(newVal)) newVal = 0;
-      if (newVal < 0) newVal = 0;
-      if (newVal > 10) newVal = 10;
-      individualIncomeDial.value = newVal;
-    });
-    new Nexus.Toggle(container.getElement().find("#individualIncomeToggle")[0], { size: [40, 20], state: false });
+      var individualIncomeDialDiv = container
+        .getElement()
+        .find("#individualIncomeDial")[0];
+      var individualIncomeInput = container
+        .getElement()
+        .find("#individualIncomeInput")[0];
+      var individualIncomeDial = new Nexus.Dial(individualIncomeDialDiv, {
+        size: [75, 75],
+        interaction: "radial",
+        mode: "relative",
+        min: 0,
+        max: 10,
+        step: 0.01,
+        value: 2,
+      });
+      individualIncomeDial.on("change", function (val) {
+        individualIncomeInput.value = val.toFixed(2);
+      });
+      individualIncomeInput.addEventListener("change", function () {
+        var newVal = parseFloat(individualIncomeInput.value);
+        if (isNaN(newVal)) newVal = 0;
+        if (newVal < 0) newVal = 0;
+        if (newVal > 10) newVal = 10;
+        individualIncomeDial.value = newVal;
+      });
+      new Nexus.Toggle(
+        container.getElement().find("#individualIncomeToggle")[0],
+        { size: [40, 20], state: false }
+      );
 
-    var giniCoefficientDialDiv = container.getElement().find("#giniCoefficientDial")[0];
-    var giniCoefficientInput = container.getElement().find("#giniCoefficientInput")[0];
-    var giniCoefficientDial = new Nexus.Dial(giniCoefficientDialDiv, {
-      size: [75, 75],
-      interaction: "radial",
-      mode: "relative",
-      min: 0,
-      max: 100,
-      step: 1,
-      value: 50,
-    });
-    giniCoefficientDial.on("change", function (val) {
-      giniCoefficientInput.value = Math.round(val);
-    });
-    giniCoefficientInput.addEventListener("change", function () {
-      var newVal = parseFloat(giniCoefficientInput.value);
-      if (isNaN(newVal)) newVal = 0;
-      if (newVal < 0) newVal = 0;
-      if (newVal > 1) newVal = 1;
-      giniCoefficientDial.value = newVal;
-    });
-    new Nexus.Toggle(container.getElement().find("#giniCoefficientToggle")[0], { size: [40, 20], state: false });
-  });
+      var giniCoefficientDialDiv = container
+        .getElement()
+        .find("#giniCoefficientDial")[0];
+      var giniCoefficientInput = container
+        .getElement()
+        .find("#giniCoefficientInput")[0];
+      var giniCoefficientDial = new Nexus.Dial(giniCoefficientDialDiv, {
+        size: [75, 75],
+        interaction: "radial",
+        mode: "relative",
+        min: 0,
+        max: 100,
+        step: 1,
+        value: 50,
+      });
+      giniCoefficientDial.on("change", function (val) {
+        giniCoefficientInput.value = Math.round(val);
+      });
+      giniCoefficientInput.addEventListener("change", function () {
+        var newVal = parseFloat(giniCoefficientInput.value);
+        if (isNaN(newVal)) newVal = 0;
+        if (newVal < 0) newVal = 0;
+        if (newVal > 1) newVal = 1;
+        giniCoefficientDial.value = newVal;
+      });
+      new Nexus.Toggle(
+        container.getElement().find("#giniCoefficientToggle")[0],
+        { size: [40, 20], state: false }
+      );
+    }
+  );
 
   // 4. DesignerEvaluator（Designer & Evaluator）
   myLayout.registerComponent("DesignerEvaluator", function (container, state) {
@@ -650,7 +739,13 @@ document.addEventListener("DOMContentLoaded", function () {
       { id: "epsilon", defaultVal: 1.0, min: 0, max: 1, step: 0.01 },
       { id: "epsilon_decay", defaultVal: 0.999, min: 0, max: 1, step: 0.001 },
       { id: "epsilon_min", defaultVal: 0.1, min: 0, max: 1, step: 0.01 },
-      { id: "memory_size", defaultVal: 10000, min: 1000, max: 100000, step: 1000 },
+      {
+        id: "memory_size",
+        defaultVal: 10000,
+        min: 1000,
+        max: 100000,
+        step: 1000,
+      },
       { id: "target_update", defaultVal: 10, min: 1, max: 100, step: 1 },
       { id: "state_size", defaultVal: 20, min: 5, max: 100, step: 1 },
     ];
@@ -708,35 +803,88 @@ document.addEventListener("DOMContentLoaded", function () {
     `;
     container.getElement().html(html);
 
-    var roles = ["Random", "Cheater", "Cooperator", "Copycat", "Grudger", "Detective", "AI", "Human"];
-    var tradeRuleLabels = ["Rule 1", "Rule 2", "Rule 3", "Rule 4", "Rule 5", "Rule 6"];
+    var roles = [
+      "Random",
+      "Cheater",
+      "Cooperator",
+      "Copycat",
+      "Grudger",
+      "Detective",
+      "AI",
+      "Human",
+    ];
+    var tradeRuleLabels = [
+      "Rule 1",
+      "Rule 2",
+      "Rule 3",
+      "Rule 4",
+      "Rule 5",
+      "Rule 6",
+    ];
 
     var pieDiv = container.getElement().find("#pieChart")[0];
-    Plotly.newPlot(pieDiv, [{ values: [1, 1, 1, 1, 1, 1, 1, 1], labels: roles, type: "pie" }], {
-      title: "Initial Population Distribution",
-    });
+    Plotly.newPlot(
+      pieDiv,
+      [{ values: [1, 1, 1, 1, 1, 1, 1, 1], labels: roles, type: "pie" }],
+      {
+        title: "Initial Population Distribution",
+      }
+    );
 
-    var lineChartDiv = container.getElement().find("#lineChartInitialPopulation")[0];
-    var layoutInitial = { title: "Initial Population Over Time", xaxis: { title: "Epoch" }, yaxis: { title: "Population Count" } };
-    var initPopData = roles.map((r) => ({ x: [], y: [], mode: "lines+markers", name: r }));
+    var lineChartDiv = container
+      .getElement()
+      .find("#lineChartInitialPopulation")[0];
+    var layoutInitial = {
+      title: "Initial Population Over Time",
+      xaxis: { title: "Epoch" },
+      yaxis: { title: "Population Count" },
+    };
+    var initPopData = roles.map((r) => ({
+      x: [],
+      y: [],
+      mode: "lines+markers",
+      name: r,
+    }));
     Plotly.newPlot(lineChartDiv, initPopData, layoutInitial);
 
     var tradeRuleDiv = container.getElement().find("#tradeRuleChart")[0];
-    var layoutTrade = { title: "Trade Rule Changes Over Time", xaxis: { title: "Epoch" }, yaxis: { title: "Trade Rule Value" } };
-    var tradeRuleData = tradeRuleLabels.map((r) => ({ x: [], y: [], mode: "lines+markers", name: r }));
+    var layoutTrade = {
+      title: "Trade Rule Changes Over Time",
+      xaxis: { title: "Epoch" },
+      yaxis: { title: "Trade Rule Value" },
+    };
+    var tradeRuleData = tradeRuleLabels.map((r) => ({
+      x: [],
+      y: [],
+      mode: "lines+markers",
+      name: r,
+    }));
     Plotly.newPlot(tradeRuleDiv, tradeRuleData, layoutTrade);
 
-    var lineChartCombinedDiv = container.getElement().find("#lineChartCombined")[0];
+    var lineChartCombinedDiv = container
+      .getElement()
+      .find("#lineChartCombined")[0];
     var layoutCombined = {
       title: "Combined Metrics Over Time",
       xaxis: { title: "Epoch" },
       yaxis: { title: "Round / Reproduction", range: [0, 20] },
-      yaxis2: { title: "Mistake Possibility", overlaying: "y", side: "right", range: [0, 1] },
+      yaxis2: {
+        title: "Mistake Possibility",
+        overlaying: "y",
+        side: "right",
+        range: [0, 1],
+      },
     };
     var combinedData = [
       { x: [], y: [], mode: "lines+markers", name: "Round Number" },
       { x: [], y: [], mode: "lines+markers", name: "Reproduction Number" },
-      { x: [], y: [], mode: "lines+markers", name: "Mistake Possibility", yaxis: "y2" },
+      {
+        x: [],
+        y: [],
+        mode: "lines+markers",
+        name: "Mistake Possibility",
+        yaxis: "y2",
+      },
     ];
     Plotly.newPlot(lineChartCombinedDiv, combinedData, layoutCombined);
 
@@ -760,12 +908,25 @@ document.addEventListener("DOMContentLoaded", function () {
         const latestCounts = safeJsonParse(latest.initial_agent_counts, []);
         Plotly.react(
           pieDiv,
-          [{ values: latestCounts.length ? latestCounts : [1, 1, 1, 1, 1, 1, 1, 1], labels: roles, type: "pie" }],
+          [
+            {
+              values: latestCounts.length
+                ? latestCounts
+                : [1, 1, 1, 1, 1, 1, 1, 1],
+              labels: roles,
+              type: "pie",
+            },
+          ],
           { title: "Initial Population (Epoch " + (latest.epoch ?? "?") + ")" }
         );
 
         // init population over time
-        const initPop = roles.map((r) => ({ x: [], y: [], mode: "lines+markers", name: r }));
+        const initPop = roles.map((r) => ({
+          x: [],
+          y: [],
+          mode: "lines+markers",
+          name: r,
+        }));
         epochs.forEach((rec) => {
           const ep = rec.epoch;
           const counts = safeJsonParse(rec.initial_agent_counts, []);
@@ -777,7 +938,12 @@ document.addEventListener("DOMContentLoaded", function () {
         Plotly.react(lineChartDiv, initPop, layoutInitial);
 
         // trade rules over time
-        const tr = tradeRuleLabels.map((r) => ({ x: [], y: [], mode: "lines+markers", name: r }));
+        const tr = tradeRuleLabels.map((r) => ({
+          x: [],
+          y: [],
+          mode: "lines+markers",
+          name: r,
+        }));
         epochs.forEach((rec) => {
           const ep = rec.epoch;
           const tradeArr = safeJsonParse(rec.trade_rules, []);
@@ -792,13 +958,22 @@ document.addEventListener("DOMContentLoaded", function () {
         const comb = [
           { x: [], y: [], mode: "lines+markers", name: "Round Number" },
           { x: [], y: [], mode: "lines+markers", name: "Reproduction Number" },
-          { x: [], y: [], mode: "lines+markers", name: "Mistake Possibility", yaxis: "y2" },
+          {
+            x: [],
+            y: [],
+            mode: "lines+markers",
+            name: "Mistake Possibility",
+            yaxis: "y2",
+          },
         ];
         epochs.forEach((rec) => {
           const ep = rec.epoch;
-          comb[0].x.push(ep); comb[0].y.push(rec.round_number ?? null);
-          comb[1].x.push(ep); comb[1].y.push(rec.reproduction_number ?? null);
-          comb[2].x.push(ep); comb[2].y.push(rec.mistake_possibility ?? null);
+          comb[0].x.push(ep);
+          comb[0].y.push(rec.round_number ?? null);
+          comb[1].x.push(ep);
+          comb[1].y.push(rec.reproduction_number ?? null);
+          comb[2].x.push(ep);
+          comb[2].y.push(rec.mistake_possibility ?? null);
         });
         Plotly.react(lineChartCombinedDiv, comb, layoutCombined);
       } catch (e) {
@@ -815,8 +990,10 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   // 7. strategyVisualization (Strategy Visualization)
-  myLayout.registerComponent("strategyVisualization", function (container, state) {
-    var html = `
+  myLayout.registerComponent(
+    "strategyVisualization",
+    function (container, state) {
+      var html = `
       <div id="strategyVisualizationContent">
         <h2 class="section-title">Strategy Visualization</h2>
         <div class="row">
@@ -833,31 +1010,35 @@ document.addEventListener("DOMContentLoaded", function () {
         </div>
       </div>
     `;
-    container.getElement().html(html);
+      container.getElement().html(html);
 
-    // 仍然通过后端拿（后端从 Blob 读 latest/q_table_heatmap.png）
-    function updateAIImage() {
-      var img = container.getElement().find("#aiStrategyImg")[0];
-      if (!img) return;
+      // 仍然通过后端拿（后端从 Blob 读 latest/q_table_heatmap.png）
+      function updateAIImage() {
+        var img = container.getElement().find("#aiStrategyImg")[0];
+        if (!img) return;
 
-      const imgBase = apiUrl("/q_table_heatmap.png");
-      if (!imgBase) {
-        console.warn("STATIC_ONLY enabled: keep default AI_strategies.png");
-        return;
+        const imgBase = apiUrl("/q_table_heatmap.png");
+        if (!imgBase) {
+          console.warn("STATIC_ONLY enabled: keep default AI_strategies.png");
+          return;
+        }
+        img.src =
+          imgBase + (imgBase.includes("?") ? "&" : "?") + "ts=" + Date.now();
       }
-      img.src = imgBase + (imgBase.includes("?") ? "&" : "?") + "ts=" + Date.now();
-    }
 
-    updateAIImage();
-    const timerId = setInterval(updateAIImage, 5000);
-    container.on("destroy", function () {
-      clearInterval(timerId);
-    });
-  });
+      updateAIImage();
+      const timerId = setInterval(updateAIImage, 5000);
+      container.on("destroy", function () {
+        clearInterval(timerId);
+      });
+    }
+  );
 
   /********** 8. evaluationVisualization（Evaluation Visualization） **********/
-  myLayout.registerComponent("evaluationVisualization", function (container, state) {
-    var html = `
+  myLayout.registerComponent(
+    "evaluationVisualization",
+    function (container, state) {
+      var html = `
       <div id="evaluationVisualizationContent">
         <h3 class="section-title">Evaluation Visualization</h3>
         <div class="row" style="margin-bottom:20px;">
@@ -886,138 +1067,268 @@ document.addEventListener("DOMContentLoaded", function () {
         </div>
       </div>
     `;
-    container.getElement().html(html);
+      container.getElement().html(html);
 
-    // 9 类别：前8 + Overall（注意你原来 human 小写，我这里修正成 Human 以统一）
-    var categories = ["Random", "Cheater", "Cooperator", "Copycat", "Grudger", "Detective", "AI", "Human", "Overall"];
+      // 9 类别：前8 + Overall（注意你原来 human 小写，我这里修正成 Human 以统一）
+      var categories = [
+        "Random",
+        "Cheater",
+        "Cooperator",
+        "Copycat",
+        "Grudger",
+        "Detective",
+        "AI",
+        "Human",
+        "Overall",
+      ];
 
-    var cooperationRatePieDiv = container.getElement().find("#cooperationRatePie")[0];
-    Plotly.newPlot(cooperationRatePieDiv, [{ values: [1,1,1,1,1,1,1,1,1], labels: categories, type: "pie" }], {
-      title: "Final Cooperation Rate",
-    });
+      var cooperationRatePieDiv = container
+        .getElement()
+        .find("#cooperationRatePie")[0];
+      Plotly.newPlot(
+        cooperationRatePieDiv,
+        [
+          {
+            values: [1, 1, 1, 1, 1, 1, 1, 1, 1],
+            labels: categories,
+            type: "pie",
+          },
+        ],
+        {
+          title: "Final Cooperation Rate",
+        }
+      );
 
-    var cooperationRateLineDiv = container.getElement().find("#cooperationRateLine")[0];
-    var layoutCoopLine = { title: "Cooperation Rate Evolution", xaxis: { title: "Epoch" }, yaxis: { title: "Cooperation Rate", range: [0, 1] } };
-    Plotly.newPlot(cooperationRateLineDiv, categories.map((c) => ({ x: [], y: [], mode: "lines+markers", name: c })), layoutCoopLine);
+      var cooperationRateLineDiv = container
+        .getElement()
+        .find("#cooperationRateLine")[0];
+      var layoutCoopLine = {
+        title: "Cooperation Rate Evolution",
+        xaxis: { title: "Epoch" },
+        yaxis: { title: "Cooperation Rate", range: [0, 1] },
+      };
+      Plotly.newPlot(
+        cooperationRateLineDiv,
+        categories.map((c) => ({
+          x: [],
+          y: [],
+          mode: "lines+markers",
+          name: c,
+        })),
+        layoutCoopLine
+      );
 
-    var individualIncomeHistogramDiv = container.getElement().find("#individualIncomeHistogram")[0];
-    Plotly.newPlot(individualIncomeHistogramDiv, [{ x: categories, y: [0,0,0,0,0,0,0,0,0], type: "bar" }], {
-      title: "Final Individual Income",
-      xaxis: { title: "Category" },
-      yaxis: { title: "Income" },
-    });
-
-    var individualIncomeLineDiv = container.getElement().find("#individualIncomeLine")[0];
-    var layoutIncomeLine = { title: "Individual Income Evolution", xaxis: { title: "Epoch" }, yaxis: { title: "Income" } };
-    Plotly.newPlot(individualIncomeLineDiv, categories.map((c) => ({ x: [], y: [], mode: "lines+markers", name: c })), layoutIncomeLine);
-
-    var giniCoefficientRadarDiv = container.getElement().find("#giniCoefficientRadar")[0];
-    Plotly.newPlot(giniCoefficientRadarDiv, [{
-      type: "scatterpolar",
-      r: [0,0,0,0,0,0,0,0,0],
-      theta: categories,
-      fill: "toself",
-      name: "Final Gini Coefficient",
-    }], {
-      polar: { radialaxis: { visible: true, range: [0, 1] } },
-      showlegend: false,
-      title: "Final Gini Coefficient",
-    });
-
-    var giniCoefficientLineDiv = container.getElement().find("#giniCoefficientLine")[0];
-    var layoutGiniLine = { title: "Gini Coefficient Evolution", xaxis: { title: "Epoch" }, yaxis: { title: "Gini Coefficient", range: [0, 1] } };
-    Plotly.newPlot(giniCoefficientLineDiv, categories.map((c) => ({ x: [], y: [], mode: "lines+markers", name: c })), layoutGiniLine);
-
-    container.on("resize", function () {
-      Plotly.Plots.resize(cooperationRatePieDiv);
-      Plotly.Plots.resize(cooperationRateLineDiv);
-      Plotly.Plots.resize(individualIncomeHistogramDiv);
-      Plotly.Plots.resize(individualIncomeLineDiv);
-      Plotly.Plots.resize(giniCoefficientRadarDiv);
-      Plotly.Plots.resize(giniCoefficientLineDiv);
-    });
-
-    async function updateEvaluationFromLatest() {
-      try {
-        const metrics = await fetchLatestMetrics();
-        if (!metrics) return;
-
-        const epochs = extractEpochs(metrics);
-        if (epochs.length === 0) return;
-
-        const latest = epochs[epochs.length - 1];
-
-        const latest_coop = safeJsonParse(latest.cooperation_rate, []);
-        const latest_income = safeJsonParse(latest.individual_income, []);
-        const latest_gini = safeJsonParse(latest.gini_coefficient, []);
-
-        // Pie (latest coop)
-        Plotly.react(cooperationRatePieDiv, [{
-          values: latest_coop.length ? latest_coop : new Array(categories.length).fill(0),
-          labels: categories,
-          type: "pie",
-        }], { title: "Final Cooperation Rate (Epoch " + (latest.epoch ?? "?") + ")" });
-
-        // Income histogram (latest)
-        Plotly.react(individualIncomeHistogramDiv, [{
-          x: categories,
-          y: latest_income.length ? latest_income : new Array(categories.length).fill(0),
-          type: "bar",
-        }], {
-          title: "Final Individual Income (Epoch " + (latest.epoch ?? "?") + ")",
+      var individualIncomeHistogramDiv = container
+        .getElement()
+        .find("#individualIncomeHistogram")[0];
+      Plotly.newPlot(
+        individualIncomeHistogramDiv,
+        [{ x: categories, y: [0, 0, 0, 0, 0, 0, 0, 0, 0], type: "bar" }],
+        {
+          title: "Final Individual Income",
           xaxis: { title: "Category" },
           yaxis: { title: "Income" },
-        });
+        }
+      );
 
-        // Radar (latest gini)
-        Plotly.react(giniCoefficientRadarDiv, [{
-          type: "scatterpolar",
-          r: latest_gini.length ? latest_gini : new Array(categories.length).fill(0),
-          theta: categories,
-          fill: "toself",
-          name: "Final Gini Coefficient",
-        }], {
+      var individualIncomeLineDiv = container
+        .getElement()
+        .find("#individualIncomeLine")[0];
+      var layoutIncomeLine = {
+        title: "Individual Income Evolution",
+        xaxis: { title: "Epoch" },
+        yaxis: { title: "Income" },
+      };
+      Plotly.newPlot(
+        individualIncomeLineDiv,
+        categories.map((c) => ({
+          x: [],
+          y: [],
+          mode: "lines+markers",
+          name: c,
+        })),
+        layoutIncomeLine
+      );
+
+      var giniCoefficientRadarDiv = container
+        .getElement()
+        .find("#giniCoefficientRadar")[0];
+      Plotly.newPlot(
+        giniCoefficientRadarDiv,
+        [
+          {
+            type: "scatterpolar",
+            r: [0, 0, 0, 0, 0, 0, 0, 0, 0],
+            theta: categories,
+            fill: "toself",
+            name: "Final Gini Coefficient",
+          },
+        ],
+        {
           polar: { radialaxis: { visible: true, range: [0, 1] } },
           showlegend: false,
-          title: "Final Gini Coefficient (Epoch " + (latest.epoch ?? "?") + ")",
-        });
+          title: "Final Gini Coefficient",
+        }
+      );
 
-        // Line charts over epochs
-        const coopLineData = categories.map((c) => ({ x: [], y: [], mode: "lines+markers", name: c }));
-        const incomeLineData = categories.map((c) => ({ x: [], y: [], mode: "lines+markers", name: c }));
-        const giniLineData = categories.map((c) => ({ x: [], y: [], mode: "lines+markers", name: c }));
+      var giniCoefficientLineDiv = container
+        .getElement()
+        .find("#giniCoefficientLine")[0];
+      var layoutGiniLine = {
+        title: "Gini Coefficient Evolution",
+        xaxis: { title: "Epoch" },
+        yaxis: { title: "Gini Coefficient", range: [0, 1] },
+      };
+      Plotly.newPlot(
+        giniCoefficientLineDiv,
+        categories.map((c) => ({
+          x: [],
+          y: [],
+          mode: "lines+markers",
+          name: c,
+        })),
+        layoutGiniLine
+      );
 
-        epochs.forEach((rec) => {
-          const ep = rec.epoch;
-          const coop_vals = safeJsonParse(rec.cooperation_rate, []);
-          const income_vals = safeJsonParse(rec.individual_income, []);
-          const gini_vals = safeJsonParse(rec.gini_coefficient, []);
-          for (let i = 0; i < categories.length; i++) {
-            coopLineData[i].x.push(ep);
-            coopLineData[i].y.push(coop_vals[i] ?? null);
+      container.on("resize", function () {
+        Plotly.Plots.resize(cooperationRatePieDiv);
+        Plotly.Plots.resize(cooperationRateLineDiv);
+        Plotly.Plots.resize(individualIncomeHistogramDiv);
+        Plotly.Plots.resize(individualIncomeLineDiv);
+        Plotly.Plots.resize(giniCoefficientRadarDiv);
+        Plotly.Plots.resize(giniCoefficientLineDiv);
+      });
 
-            incomeLineData[i].x.push(ep);
-            incomeLineData[i].y.push(income_vals[i] ?? null);
+      async function updateEvaluationFromLatest() {
+        try {
+          const metrics = await fetchLatestMetrics();
+          if (!metrics) return;
 
-            giniLineData[i].x.push(ep);
-            giniLineData[i].y.push(gini_vals[i] ?? null);
-          }
-        });
+          const epochs = extractEpochs(metrics);
+          if (epochs.length === 0) return;
 
-        Plotly.react(cooperationRateLineDiv, coopLineData, layoutCoopLine);
-        Plotly.react(individualIncomeLineDiv, incomeLineData, layoutIncomeLine);
-        Plotly.react(giniCoefficientLineDiv, giniLineData, layoutGiniLine);
-      } catch (e) {
-        console.error("updateEvaluationFromLatest error:", e);
+          const latest = epochs[epochs.length - 1];
+
+          const latest_coop = safeJsonParse(latest.cooperation_rate, []);
+          const latest_income = safeJsonParse(latest.individual_income, []);
+          const latest_gini = safeJsonParse(latest.gini_coefficient, []);
+
+          // Pie (latest coop)
+          Plotly.react(
+            cooperationRatePieDiv,
+            [
+              {
+                values: latest_coop.length
+                  ? latest_coop
+                  : new Array(categories.length).fill(0),
+                labels: categories,
+                type: "pie",
+              },
+            ],
+            {
+              title:
+                "Final Cooperation Rate (Epoch " + (latest.epoch ?? "?") + ")",
+            }
+          );
+
+          // Income histogram (latest)
+          Plotly.react(
+            individualIncomeHistogramDiv,
+            [
+              {
+                x: categories,
+                y: latest_income.length
+                  ? latest_income
+                  : new Array(categories.length).fill(0),
+                type: "bar",
+              },
+            ],
+            {
+              title:
+                "Final Individual Income (Epoch " + (latest.epoch ?? "?") + ")",
+              xaxis: { title: "Category" },
+              yaxis: { title: "Income" },
+            }
+          );
+
+          // Radar (latest gini)
+          Plotly.react(
+            giniCoefficientRadarDiv,
+            [
+              {
+                type: "scatterpolar",
+                r: latest_gini.length
+                  ? latest_gini
+                  : new Array(categories.length).fill(0),
+                theta: categories,
+                fill: "toself",
+                name: "Final Gini Coefficient",
+              },
+            ],
+            {
+              polar: { radialaxis: { visible: true, range: [0, 1] } },
+              showlegend: false,
+              title:
+                "Final Gini Coefficient (Epoch " + (latest.epoch ?? "?") + ")",
+            }
+          );
+
+          // Line charts over epochs
+          const coopLineData = categories.map((c) => ({
+            x: [],
+            y: [],
+            mode: "lines+markers",
+            name: c,
+          }));
+          const incomeLineData = categories.map((c) => ({
+            x: [],
+            y: [],
+            mode: "lines+markers",
+            name: c,
+          }));
+          const giniLineData = categories.map((c) => ({
+            x: [],
+            y: [],
+            mode: "lines+markers",
+            name: c,
+          }));
+
+          epochs.forEach((rec) => {
+            const ep = rec.epoch;
+            const coop_vals = safeJsonParse(rec.cooperation_rate, []);
+            const income_vals = safeJsonParse(rec.individual_income, []);
+            const gini_vals = safeJsonParse(rec.gini_coefficient, []);
+            for (let i = 0; i < categories.length; i++) {
+              coopLineData[i].x.push(ep);
+              coopLineData[i].y.push(coop_vals[i] ?? null);
+
+              incomeLineData[i].x.push(ep);
+              incomeLineData[i].y.push(income_vals[i] ?? null);
+
+              giniLineData[i].x.push(ep);
+              giniLineData[i].y.push(gini_vals[i] ?? null);
+            }
+          });
+
+          Plotly.react(cooperationRateLineDiv, coopLineData, layoutCoopLine);
+          Plotly.react(
+            individualIncomeLineDiv,
+            incomeLineData,
+            layoutIncomeLine
+          );
+          Plotly.react(giniCoefficientLineDiv, giniLineData, layoutGiniLine);
+        } catch (e) {
+          console.error("updateEvaluationFromLatest error:", e);
+        }
       }
-    }
 
-    updateEvaluationFromLatest();
-    const timerId = setInterval(updateEvaluationFromLatest, 5000);
-    container.on("destroy", function () {
-      clearInterval(timerId);
-    });
-  });
+      updateEvaluationFromLatest();
+      const timerId = setInterval(updateEvaluationFromLatest, 5000);
+      container.on("destroy", function () {
+        clearInterval(timerId);
+      });
+    }
+  );
 
   myLayout.init();
 });
