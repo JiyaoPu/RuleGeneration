@@ -1,3 +1,4 @@
+// server.js
 const express = require("express");
 const { BlobServiceClient } = require("@azure/storage-blob");
 const { DefaultAzureCredential } = require("@azure/identity");
@@ -7,15 +8,31 @@ const port = process.env.PORT || 8080;
 
 // ====== CORS (Route B) ======
 const ALLOWED_ORIGIN =
-  process.env.ALLOWED_ORIGIN || "https://icy-mud-07f3ea903.2.azurestaticapps.net";
+  process.env.ALLOWED_ORIGIN ||
+  "https://icy-mud-07f3ea903.2.azurestaticapps.net";
 
 app.use((req, res, next) => {
+  // Allow only your SWA origin
   res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
   res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  // Methods used now (and future-proof POST)
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+
+  // ✅ Key fix: allow Cache-Control (and pass-through requested headers)
+  // Browsers send preflight with Access-Control-Request-Headers: cache-control,...
+  const requestedHeaders = req.headers["access-control-request-headers"];
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    requestedHeaders || "Content-Type, Cache-Control, Accept"
+  );
+
+  // Cache preflight response
   res.setHeader("Access-Control-Max-Age", "86400");
+
+  // Handle preflight quickly
   if (req.method === "OPTIONS") return res.sendStatus(204);
+
   next();
 });
 
@@ -27,13 +44,17 @@ const METRICS_CONTAINER = process.env.METRICS_CONTAINER || "rgnresults";
 const LATEST_BLOB = process.env.LATEST_BLOB || "latest/metrics.json";
 const RUN_BLOB = process.env.RUN_BLOB || "run/metrics.json"; // adjust if needed
 
+// Create once (avoid creating credential/client per request)
+const credential = new DefaultAzureCredential(); // uses Managed Identity in App Service
+const blobServiceClient = new BlobServiceClient(
+  `https://${STORAGE_ACCOUNT}.blob.core.windows.net`,
+  credential
+);
+
 function getBlobClient(blobPath) {
-  const credential = new DefaultAzureCredential(); // uses Managed Identity in App Service
-  const service = new BlobServiceClient(
-    `https://${STORAGE_ACCOUNT}.blob.core.windows.net`,
-    credential
-  );
-  return service.getContainerClient(METRICS_CONTAINER).getBlobClient(blobPath);
+  return blobServiceClient
+    .getContainerClient(METRICS_CONTAINER)
+    .getBlobClient(blobPath);
 }
 
 async function downloadBlobText(blobPath) {
@@ -60,14 +81,17 @@ app.get("/health", (req, res) => {
 app.get("/api/latest", async (req, res) => {
   try {
     const blobClient = getBlobClient(LATEST_BLOB);
-    const props = await blobClient.getProperties(); // useful to verify lastModified/etag
+    const props = await blobClient.getProperties(); // lastModified/etag verification
 
     const text = await downloadBlobText(LATEST_BLOB);
 
     res.set("Cache-Control", "no-store");
     res.set("X-Blob-Path", LATEST_BLOB);
     res.set("X-Blob-ETag", String(props.etag || ""));
-    res.set("X-Blob-Last-Modified", props.lastModified?.toISOString?.() || "");
+    res.set(
+      "X-Blob-Last-Modified",
+      props.lastModified?.toISOString?.() || ""
+    );
 
     // Return raw JSON text (avoid double parse issues)
     res.type("application/json").send(text);
@@ -92,7 +116,10 @@ app.get("/api/run", async (req, res) => {
     res.set("Cache-Control", "no-store");
     res.set("X-Blob-Path", RUN_BLOB);
     res.set("X-Blob-ETag", String(props.etag || ""));
-    res.set("X-Blob-Last-Modified", props.lastModified?.toISOString?.() || "");
+    res.set(
+      "X-Blob-Last-Modified",
+      props.lastModified?.toISOString?.() || ""
+    );
 
     res.type("application/json").send(text);
   } catch (e) {
