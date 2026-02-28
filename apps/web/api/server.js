@@ -1,4 +1,8 @@
 // server.js
+
+const { spawn } = require("child_process");
+
+
 const express = require("express");
 const { BlobServiceClient } = require("@azure/storage-blob");
 const { DefaultAzureCredential } = require("@azure/identity");
@@ -207,4 +211,58 @@ app.listen(port, () => {
   console.log(`RUN_BLOB=${RUN_BLOB}`);
   console.log(`RUN_SETTINGS_JSON=${RUN_SETTINGS_JSON}`);
   console.log(`RUN_SETTINGS_TXT=${RUN_SETTINGS_TXT}`);
+});
+
+
+// ✅ Start Azure ML job (run Experiment.py)
+app.post("/api/run", async (req, res) => {
+  try {
+    const settings = req.body;
+    if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
+      return res.status(400).json({ error: "Body must be a JSON object (settings)." });
+    }
+
+    // 这里直接调用 python 提交 job（azure-ai-ml）
+    const py = spawn("python", ["scripts/submit_aml_job.py"], {
+      env: process.env,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    let out = "";
+    let err = "";
+
+    py.stdout.on("data", (d) => (out += d.toString("utf-8")));
+    py.stderr.on("data", (d) => (err += d.toString("utf-8")));
+
+    py.on("close", (code) => {
+      if (code !== 0) {
+        return res.status(500).json({
+          error: "submit AML job failed",
+          exitCode: code,
+          stderr: err.slice(-4000),
+          stdout: out.slice(-4000),
+        });
+      }
+
+      // Python 输出一段 JSON：{ job_name, studio_url }
+      let payload = null;
+      try {
+        payload = JSON.parse(out.trim());
+      } catch (e) {
+        return res.status(500).json({
+          error: "submit AML job returned non-JSON",
+          stdout: out.slice(-4000),
+          stderr: err.slice(-4000),
+        });
+      }
+
+      res.json({ ok: true, ...payload });
+    });
+
+    // 把 settings JSON 通过 stdin 传给 python
+    py.stdin.write(JSON.stringify(settings));
+    py.stdin.end();
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
