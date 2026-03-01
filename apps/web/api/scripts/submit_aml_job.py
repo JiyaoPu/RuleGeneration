@@ -45,7 +45,7 @@ def main():
 
     # ---- 4) define job ----
     job = command(
-        ccode="git+https://github.com/JiyaoPu/RuleGeneration.git#main:aml_component_train", 
+        code="git+https://github.com/JiyaoPu/RuleGeneration.git#main:aml_component_train", 
         command=(
             "pip install -r requirements.txt && "
             "python main.py "
