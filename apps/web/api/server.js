@@ -1,8 +1,6 @@
 // server.js
 
 const { spawn } = require("child_process");
-
-
 const express = require("express");
 const { BlobServiceClient } = require("@azure/storage-blob");
 const { DefaultAzureCredential } = require("@azure/identity");
@@ -16,24 +14,18 @@ const ALLOWED_ORIGIN =
   "https://icy-mud-07f3ea903.2.azurestaticapps.net";
 
 app.use((req, res, next) => {
-  // Allow only your SWA origin
   res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
   res.setHeader("Vary", "Origin");
 
-  // Methods used now (and future-proof POST)
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
 
-  // Allow requested headers (preflight)
   const requestedHeaders = req.headers["access-control-request-headers"];
   res.setHeader(
     "Access-Control-Allow-Headers",
     requestedHeaders || "Content-Type, Cache-Control, Accept"
   );
 
-  // Cache preflight response
   res.setHeader("Access-Control-Max-Age", "86400");
-
-  // Handle preflight quickly
   if (req.method === "OPTIONS") return res.sendStatus(204);
 
   next();
@@ -46,16 +38,22 @@ app.use(express.json({ limit: "2mb" }));
 const STORAGE_ACCOUNT = process.env.STORAGE_ACCOUNT || "rgnspace3954763138";
 const METRICS_CONTAINER = process.env.METRICS_CONTAINER || "rgnresults";
 
-// Use env vars so you can change without redeploy
 const LATEST_BLOB = process.env.LATEST_BLOB || "latest/metrics.json";
-const RUN_BLOB = process.env.RUN_BLOB || "run/metrics.json"; // adjust if needed
+const RUN_BLOB = process.env.RUN_BLOB || "run/metrics.json";
 
 // Where to store settings (fixed path for now)
 const RUN_SETTINGS_JSON = process.env.RUN_SETTINGS_JSON || "run/settings.json";
 const RUN_SETTINGS_TXT = process.env.RUN_SETTINGS_TXT || "run/settings.txt";
 
-// Create once (avoid creating credential/client per request)
-const credential = new DefaultAzureCredential(); // uses Managed Identity in App Service
+// IMPORTANT: 你 AML job 里 input settings_json 用的是 datastore path
+// 你之前已经建了 datastore: rgnresults_ds -> container rgnresults
+// 所以这里固定生成对应的 AML URI（无需 UI 选 Datastore）
+const AML_SETTINGS_URI =
+  process.env.AML_SETTINGS_URI ||
+  "azureml://datastores/rgnresults_ds/paths/run/settings.json";
+
+// Create once
+const credential = new DefaultAzureCredential();
 const blobServiceClient = new BlobServiceClient(
   `https://${STORAGE_ACCOUNT}.blob.core.windows.net`,
   credential
@@ -91,8 +89,6 @@ function streamToString(readable) {
 }
 
 function settingsToTxt(settings) {
-  // Keep same style as your previous settings.txt: "key: value"
-  // Order follows insertion order of object keys (browser usually preserves).
   return (
     Object.entries(settings || {})
       .map(([k, v]) => `${k}: ${String(v)}`)
@@ -108,6 +104,22 @@ async function uploadBlobText(blobPath, text, contentType) {
   });
 }
 
+async function saveRunSettingsToBlob(settings) {
+  // 1) JSON
+  await uploadBlobText(
+    RUN_SETTINGS_JSON,
+    JSON.stringify(settings, null, 2),
+    "application/json; charset=utf-8"
+  );
+
+  // 2) TXT
+  await uploadBlobText(
+    RUN_SETTINGS_TXT,
+    settingsToTxt(settings),
+    "text/plain; charset=utf-8"
+  );
+}
+
 // Health
 app.get("/health", (req, res) => {
   res.json({ ok: true, time: new Date().toISOString() });
@@ -117,8 +129,7 @@ app.get("/health", (req, res) => {
 app.get("/api/latest", async (req, res) => {
   try {
     const blobClient = getBlobClient(LATEST_BLOB);
-    const props = await blobClient.getProperties(); // lastModified/etag verification
-
+    const props = await blobClient.getProperties();
     const text = await downloadBlobText(LATEST_BLOB);
 
     res.set("Cache-Control", "no-store");
@@ -126,7 +137,6 @@ app.get("/api/latest", async (req, res) => {
     res.set("X-Blob-ETag", String(props.etag || ""));
     res.set("X-Blob-Last-Modified", props.lastModified?.toISOString?.() || "");
 
-    // Return raw JSON text (avoid double parse issues)
     res.type("application/json").send(text);
   } catch (e) {
     res.status(500).json({
@@ -138,12 +148,11 @@ app.get("/api/latest", async (req, res) => {
   }
 });
 
-// ✅ run from Blob (optional)
+// ✅ run from Blob (optional, still keep)
 app.get("/api/run", async (req, res) => {
   try {
     const blobClient = getBlobClient(RUN_BLOB);
     const props = await blobClient.getProperties();
-
     const text = await downloadBlobText(RUN_BLOB);
 
     res.set("Cache-Control", "no-store");
@@ -162,34 +171,24 @@ app.get("/api/run", async (req, res) => {
   }
 });
 
-// ✅ NEW: save settings into Blob (run/settings.json + run/settings.txt)
+// ✅ save settings into Blob (run/settings.json + run/settings.txt)
 app.post("/api/settings", async (req, res) => {
   try {
     const settings = req.body;
-
     if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
-      return res.status(400).json({ error: "Body must be a JSON object (settings)." });
+      return res
+        .status(400)
+        .json({ error: "Body must be a JSON object (settings)." });
     }
 
-    // 1) JSON
-    await uploadBlobText(
-      RUN_SETTINGS_JSON,
-      JSON.stringify(settings, null, 2),
-      "application/json; charset=utf-8"
-    );
-
-    // 2) TXT
-    await uploadBlobText(
-      RUN_SETTINGS_TXT,
-      settingsToTxt(settings),
-      "text/plain; charset=utf-8"
-    );
+    await saveRunSettingsToBlob(settings);
 
     res.set("Cache-Control", "no-store");
     res.json({
       ok: true,
       container: METRICS_CONTAINER,
       saved: [RUN_SETTINGS_JSON, RUN_SETTINGS_TXT],
+      aml_settings_uri: AML_SETTINGS_URI,
       time: new Date().toISOString(),
     });
   } catch (e) {
@@ -202,29 +201,26 @@ app.post("/api/settings", async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Backend listening on port ${port}`);
-  console.log(`ALLOWED_ORIGIN=${ALLOWED_ORIGIN}`);
-  console.log(`STORAGE_ACCOUNT=${STORAGE_ACCOUNT}`);
-  console.log(`METRICS_CONTAINER=${METRICS_CONTAINER}`);
-  console.log(`LATEST_BLOB=${LATEST_BLOB}`);
-  console.log(`RUN_BLOB=${RUN_BLOB}`);
-  console.log(`RUN_SETTINGS_JSON=${RUN_SETTINGS_JSON}`);
-  console.log(`RUN_SETTINGS_TXT=${RUN_SETTINGS_TXT}`);
-});
-
-
-// ✅ Start Azure ML job (run Experiment.py)
+// ✅ Start Azure ML job (Run button -> Job)
 app.post("/api/run", async (req, res) => {
   try {
     const settings = req.body;
     if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
-      return res.status(400).json({ error: "Body must be a JSON object (settings)." });
+      return res
+        .status(400)
+        .json({ error: "Body must be a JSON object (settings)." });
     }
 
-    // 这里直接调用 python 提交 job（azure-ai-ml）
+    // (1) Save settings to blob FIRST
+    await saveRunSettingsToBlob(settings);
+
+    // (2) Submit AML job via python script
+    // 推荐：python 脚本从 env 读取 AML_SETTINGS_URI
     const py = spawn("python", ["scripts/submit_aml_job.py"], {
-      env: process.env,
+      env: {
+        ...process.env,
+        AML_SETTINGS_URI, // ✅ 关键：告诉 python 用哪个 settings input
+      },
       stdio: ["pipe", "pipe", "pipe"],
     });
 
@@ -244,7 +240,6 @@ app.post("/api/run", async (req, res) => {
         });
       }
 
-      // Python 输出一段 JSON：{ job_name, studio_url }
       let payload = null;
       try {
         payload = JSON.parse(out.trim());
@@ -256,13 +251,33 @@ app.post("/api/run", async (req, res) => {
         });
       }
 
-      res.json({ ok: true, ...payload });
+      res.set("Cache-Control", "no-store");
+      res.json({
+        ok: true,
+        saved_settings: [RUN_SETTINGS_JSON, RUN_SETTINGS_TXT],
+        aml_settings_uri: AML_SETTINGS_URI,
+        ...payload,
+      });
     });
 
-    // 把 settings JSON 通过 stdin 传给 python
+    // 可选：把 settings 传 stdin（如果你的 submit_aml_job.py 仍然需要）
+    // 但现在更稳的是：submit_aml_job.py 直接用 AML_SETTINGS_URI 作为 inputs.settings_json
     py.stdin.write(JSON.stringify(settings));
     py.stdin.end();
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ---- START SERVER (MUST BE LAST) ----
+app.listen(port, () => {
+  console.log(`Backend listening on port ${port}`);
+  console.log(`ALLOWED_ORIGIN=${ALLOWED_ORIGIN}`);
+  console.log(`STORAGE_ACCOUNT=${STORAGE_ACCOUNT}`);
+  console.log(`METRICS_CONTAINER=${METRICS_CONTAINER}`);
+  console.log(`LATEST_BLOB=${LATEST_BLOB}`);
+  console.log(`RUN_BLOB=${RUN_BLOB}`);
+  console.log(`RUN_SETTINGS_JSON=${RUN_SETTINGS_JSON}`);
+  console.log(`RUN_SETTINGS_TXT=${RUN_SETTINGS_TXT}`);
+  console.log(`AML_SETTINGS_URI=${AML_SETTINGS_URI}`);
 });

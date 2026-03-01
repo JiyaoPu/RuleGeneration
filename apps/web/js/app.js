@@ -406,62 +406,115 @@ document.addEventListener("DOMContentLoaded", function () {
       text: "Run Program",
     });
 
-    strategyButton.once("change", function () {
-      var hintElement = document.getElementById("buttonHint");
-      if (hintElement)
-        hintElement.innerText = "Program is running, Please wait.";
+    // --- Run button state ---
+    let isRunning = false;
 
-      var settingSelectors = [
+    function setHint(text, color) {
+      const hintElement = document.getElementById("buttonHint");
+      if (!hintElement) return;
+      hintElement.innerText = text;
+      if (color) hintElement.style.color = color;
+    }
+
+    function collectSettings() {
+      const settingSelectors = [
         "#RuleSetting input",
         "#StrategySetting input",
         "#EvaluationExpectation input",
         "#DesignerEvaluator input",
         "#AgentTraining input",
       ];
-      var inputs = document.querySelectorAll(settingSelectors.join(", "));
-      var settings = {};
+      const inputs = document.querySelectorAll(settingSelectors.join(", "));
+      const settings = {};
       inputs.forEach(function (input, index) {
-        var key = input.id || "input_" + index;
+        const key = input.id || "input_" + index;
         settings[key] = input.value;
       });
+      return settings;
+    }
 
-      // ✅ send settings to backend to persist in Blob (run/settings.json & run/settings.txt)
-      const saveUrl = apiUrl("/settings");
-      if (!saveUrl) {
-        console.warn("STATIC_ONLY enabled: skip /settings");
-        return;
-      }
+    async function runJob() {
+      if (isRunning) return;
+      isRunning = true;
 
-      fetch(saveUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
-      })
-        .then(async (r) => {
-          const data = await r.json().catch(() => ({}));
-          if (!r.ok)
-            throw new Error(
-              `POST /settings failed: ${r.status} ${JSON.stringify(data)}`
-            );
-          console.log("Settings saved:", data);
-          return data;
-        })
-        .catch((err) => console.error("Save settings error:", err));
+      // Nexus.Button 没有标准 disabled，这里用文本+hint 表示，并避免重复提交
+      setHint("Submitting job to Azure ML…", "#FF851B");
 
-      // 发送到后端（你后续会改成触发 AML）
+      const settings = collectSettings();
+
+      // ✅ 直接调用 /run：后端会先保存 settings 到 Blob，再提交 AML job
       const runUrl = apiUrl("/run");
       if (!runUrl) {
         console.warn("STATIC_ONLY enabled: skip /run");
+        setHint("STATIC_ONLY enabled: /run skipped.", "#AAAAAA");
+        isRunning = false;
         return;
       }
-      fetch(runUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
-      })
-        .then((r) => r.json())
-        .then((data) => console.log("Run response:", data))
-        .catch((err) => console.error("Run error:", err));
+
+      try {
+        const r = await fetch(runUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(settings),
+        });
+
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          throw new Error(
+            `POST /run failed: ${r.status} ${JSON.stringify(data)}`
+          );
+        }
+
+        console.log("Run response:", data);
+
+        // 期望后端返回：{ ok:true, job_name, studio_url, ... }
+        const jobName = data.job_name || data.jobName || data.name || "";
+        const studioUrl = data.studio_url || data.studioUrl || "";
+
+        if (jobName) {
+          setHint(`Job submitted: ${jobName}`, "#2ECC40");
+        } else {
+          setHint("Job submitted.", "#2ECC40");
+        }
+
+        // 可选：如果有 studio_url，给用户一个可点击链接（直接写到 hint 下面）
+        if (studioUrl) {
+          // 这里不改你的布局结构，简单 append 一个 link（避免重复 append）
+          const containerEl = document.getElementById("StrategySetting");
+          if (containerEl) {
+            const existing = document.getElementById("studioLink");
+            if (existing) existing.remove();
+
+            const a = document.createElement("a");
+            a.id = "studioLink";
+            a.href = studioUrl;
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            a.innerText = "Open in Azure ML Studio";
+            a.style.display = "block";
+            a.style.marginTop = "8px";
+            a.style.fontSize = "14px";
+            a.style.color = "#0074D9";
+            containerEl
+              .querySelector("#strategyButtonContainer")
+              ?.appendChild(a);
+          }
+        }
+      } catch (err) {
+        console.error("Run error:", err);
+        setHint(`Run failed: ${err.message}`, "#FF4136");
+      } finally {
+        isRunning = false;
+      }
+    }
+
+    // ✅ 不要 once：允许多次提交；用 isRunning 防抖
+    strategyButton.on("change", function () {
+      // Nexus.Button change 在按下/松开都会触发，通常 value 为 true/false
+      // 只在按下（true）时触发一次
+      if (strategyButton.state === true || strategyButton.value === true) {
+        runJob();
+      }
     });
   });
 

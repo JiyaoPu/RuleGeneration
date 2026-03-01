@@ -1,0 +1,24 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
+
+name: rgn_train_component
+display_name: RGN Train Component
+version: 1
+type: command
+
+inputs:
+  settings_json:
+    type: uri_file
+
+outputs:
+  outputs_dir:
+    type: uri_folder
+
+code: .
+
+environment: azureml:AzureML-sklearn-1.0-ubuntu20.04-py38-cpu@latest
+
+command: >
+  pip install -r requirements.txt &&
+  python main.py
+  --settings_json ${{inputs.settings_json}}
+  --outputs_dir ${{outputs.outputs_dir}}

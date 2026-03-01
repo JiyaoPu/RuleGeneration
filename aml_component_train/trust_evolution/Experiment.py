@@ -36,9 +36,6 @@ from matplotlib.lines import Line2D
 simplefilter(action="ignore",category=FutureWarning)
 simplefilter(action="ignore",category=UserWarning)
 
-os.makedirs("agents", exist_ok=True)
-
-
 def str2bool(v):
     if isinstance(v, bool):
         return v
@@ -106,6 +103,7 @@ parser.add_argument("--target_update", type=int, default=10, help="how often to 
 parser.add_argument("--state_size", type=int, default=20, help="size of the state vector")
 
 # Other
+parser.add_argument("--output_dir", type=str, default=os.getenv("AZUREML_OUTPUT_DIR", "outputs"), help="All artifacts will be written under this directory (Azure ML component output).")
 # parser.add_argument("--publish", type=bool, default=True, help="True means publish data on web")
 
 actionlist = ["cheat", "cooperation"]
@@ -113,6 +111,27 @@ actionlist = ["cheat", "cooperation"]
 publish = False
 printQtable = False
 opt = parser.parse_args()
+
+# === Output base dir (AML-friendly) ===
+OUTPUT_DIR = Path(opt.output_dir).resolve()
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+def out_path(rel: str | Path) -> Path:
+    """Resolve a relative artifact path under OUTPUT_DIR."""
+    p = Path(rel)
+    return p if p.is_absolute() else (OUTPUT_DIR / p)
+
+# Ensure artifact dirs exist
+out_path("agents").mkdir(parents=True, exist_ok=True)
+out_path("data").mkdir(parents=True, exist_ok=True)
+
+# Redirect legacy env-based paths to OUTPUT_DIR by default
+os.environ.setdefault("RULEGEN_EXCEL_PATH", str(out_path("dataupdates.xlsx")))
+os.environ.setdefault("RULEGEN_TEST_RESULTS_PATH", str(out_path("test_results.xlsx")))
+os.environ.setdefault("RULEGEN_QTABLE_PATH", str(out_path("q_table_heatmap.png")))
+os.environ.setdefault("RULEGEN_SKILL_SURFACE_PATH", str(out_path("skill_surfaces.png")))
+os.environ.setdefault("RULEGEN_SKILL_SURFACE_CSV_DIR", str(out_path("skill_surface_csv/")))
+
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -586,7 +605,9 @@ def plot_skill_vs_difficulty(all_difficulty, all_skill, num_epochs, output_path=
     plt.legend()
     plt.grid(True)
     plt.savefig(output_path)
-    plt.show()
+    if os.getenv("AZUREML_RUN_ID") is None:
+        plt.show()
+    plt.close()
 
 
 def get_fixed_rules_vector(opt):
@@ -1688,18 +1709,22 @@ for DE_epoch_id in range(opt.DE_train_episode):
     #                                plot_output="./data/reproduction_number_difficulty/reproduction_number_tsne.png")
 
     if save_model:
-        PATH = resolve_path("ml/designer/designer.pth")
-
+        PATH = out_path("designer.pth")
         torch.save(ruleDesigner.state_dict(), PATH)
+        print(f"[Artifact] saved designer to {PATH}")
     if printSER:
         print('----- SER training, Epoch ID: ', DE_epoch_id, ' -----')
         print('  loss_g: ', loss_g,'  loss_d: ', loss_d)
         print('  Gini Coefficient: ', environment_evaluation_result)
         print('  Expectation: ', evaluation_requirement.squeeze())
 
-plot_skill_vs_difficulty(all_difficulty, all_skill, opt.agent_train_epoch)
-save_extrinsic_reward_results_to_csv('extrinsic_reward_A.csv', epoch_list, reward_cooperation_list)
-save_extrinsic_reward_results_to_csv('extrinsic_reward_B.csv', epoch_list, reward_cheat_list)
+plot_skill_vs_difficulty(
+    all_difficulty, all_skill, opt.agent_train_epoch,
+    output_path=str(out_path("skill_vs_difficulty.png"))
+)
+
+save_extrinsic_reward_results_to_csv(str(out_path("extrinsic_reward_A.csv")), epoch_list, reward_cooperation_list)
+save_extrinsic_reward_results_to_csv(str(out_path("extrinsic_reward_B.csv")), epoch_list, reward_cheat_list)
 print("=========done========")
 
 
