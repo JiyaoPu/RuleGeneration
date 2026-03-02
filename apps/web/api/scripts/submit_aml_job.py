@@ -13,7 +13,7 @@ RESOURCE_GROUP = os.environ.get("AZ_RESOURCE_GROUP")
 WORKSPACE_NAME = os.environ.get("AZ_ML_WORKSPACE")
 
 COMPUTE_NAME = os.environ.get("AZ_ML_COMPUTE", "RGN-Compute-Cluster")
-ENV_NAME = os.environ.get("AZ_ML_ENV", "RGN_Env:1")  # 推荐加版本号
+ENV_NAME = os.environ.get("AZ_ML_ENV", "azureml:RGN_Environment@1")  # 推荐加版本号
 DATASTORE_NAME = os.environ.get("AZ_ML_DATASTORE", "rgnresults_ds")
 
 # settings 已经由 server.js 保存到 run/settings.json

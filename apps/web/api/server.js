@@ -215,11 +215,13 @@ app.post("/api/run", async (req, res) => {
     await saveRunSettingsToBlob(settings);
 
     // (2) Submit AML job via python script
-    // 推荐：python 脚本从 env 读取 AML_SETTINGS_URI
-    const py = spawn("python", ["scripts/submit_aml_job.py"], {
+    // ✅ App Service 上常见只有 python3，没有 python；同时允许用环境变量覆盖
+    const PYTHON_BIN = process.env.PYTHON_BIN || "python3";
+
+    const py = spawn(PYTHON_BIN, ["scripts/submit_aml_job.py"], {
       env: {
         ...process.env,
-        AML_SETTINGS_URI, // ✅ 关键：告诉 python 用哪个 settings input
+        AML_SETTINGS_URI,
       },
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -227,13 +229,34 @@ app.post("/api/run", async (req, res) => {
     let out = "";
     let err = "";
 
+    // ✅ 关键：捕获 spawn 错误（比如 ENOENT：找不到 python/python3）
+    py.on("error", (e) => {
+      console.error("spawn python error:", e);
+
+      // 避免重复响应
+      if (res.headersSent) return;
+
+      return res.status(500).json({
+        ok: false,
+        error: "failed to start submit_aml_job.py",
+        python_bin: PYTHON_BIN,
+        code: e.code,
+        message: e.message,
+        hint: "App Service 环境里可能没有 python(或python3)。可在 Configuration 里设置 PYTHON_BIN=/usr/bin/python3 或改为用 Azure ML REST API 触发 Job。",
+      });
+    });
+
     py.stdout.on("data", (d) => (out += d.toString("utf-8")));
     py.stderr.on("data", (d) => (err += d.toString("utf-8")));
 
     py.on("close", (code) => {
+      if (res.headersSent) return;
+
       if (code !== 0) {
         return res.status(500).json({
+          ok: false,
           error: "submit AML job failed",
+          python_bin: PYTHON_BIN,
           exitCode: code,
           stderr: err.slice(-4000),
           stdout: out.slice(-4000),
@@ -245,25 +268,32 @@ app.post("/api/run", async (req, res) => {
         payload = JSON.parse(out.trim());
       } catch (e) {
         return res.status(500).json({
+          ok: false,
           error: "submit AML job returned non-JSON",
+          python_bin: PYTHON_BIN,
           stdout: out.slice(-4000),
           stderr: err.slice(-4000),
         });
       }
 
       res.set("Cache-Control", "no-store");
-      res.json({
+      return res.json({
         ok: true,
         saved_settings: [RUN_SETTINGS_JSON, RUN_SETTINGS_TXT],
         aml_settings_uri: AML_SETTINGS_URI,
+        python_bin: PYTHON_BIN,
         ...payload,
       });
     });
 
-    // 可选：把 settings 传 stdin（如果你的 submit_aml_job.py 仍然需要）
-    // 但现在更稳的是：submit_aml_job.py 直接用 AML_SETTINGS_URI 作为 inputs.settings_json
-    py.stdin.write(JSON.stringify(settings));
-    py.stdin.end();
+    // stdin 可选：如果你的 python 脚本会读 stdin
+    try {
+      py.stdin.write(JSON.stringify(settings));
+      py.stdin.end();
+    } catch (e) {
+      // 如果 spawn 失败，这里可能也会报错；但我们已经在 py.on('error') 里处理响应
+      console.error("stdin write error:", e);
+    }
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
