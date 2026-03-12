@@ -52,7 +52,7 @@ const AZ_ML_WORKSPACE = process.env.AZ_ML_WORKSPACE;
 
 const AZ_ML_COMPUTE = process.env.AZ_ML_COMPUTE || "RGN-Compute-Cluster";
 
-// 已注册 component（你现在应填：rgn_train_component / 2）
+// 已注册 command component
 const AZ_ML_COMPONENT_NAME =
   process.env.AZ_ML_COMPONENT_NAME || "rgn_train_component";
 const AZ_ML_COMPONENT_VERSION =
@@ -178,7 +178,7 @@ function makeJobName(prefix = "webrun") {
   return `${prefix}_${ts}`;
 }
 
-function buildComponentJobBody({ jobName, settingsUri }) {
+function buildCommandComponentJobBody({ jobName, settingsUri }) {
   const computeId = amlResourceId("computes", AZ_ML_COMPUTE);
   const componentId = amlResourceId(
     "components",
@@ -191,32 +191,26 @@ function buildComponentJobBody({ jobName, settingsUri }) {
 
   return {
     properties: {
-      jobType: "Pipeline",
+      jobType: "Command",
       displayName: jobName,
       experimentName: "web_run",
 
-      jobs: {
-        train_step: {
-          componentId,
-          computeId,
-          inputs: {
-            settings_json: {
-              jobInputType: "uri_file",
-              uri: settingsUri,
-            },
-          },
-          outputs: {
-            outputs_dir: {
-              jobOutputType: "uri_folder",
-              mode: "Upload",
-              uri: outputsUri,
-            },
-          },
+      componentId,
+      computeId,
+
+      inputs: {
+        settings_json: {
+          jobInputType: "uri_file",
+          uri: settingsUri,
         },
       },
 
-      settings: {
-        continueOnStepFailure: false,
+      outputs: {
+        outputs_dir: {
+          jobOutputType: "uri_folder",
+          mode: "Upload",
+          uri: outputsUri,
+        },
       },
     },
   };
@@ -231,7 +225,7 @@ async function submitAmlComponentJob({ jobName, settingsUri }) {
     `?api-version=${encodeURIComponent(AZ_ML_API_VERSION)}`;
 
   const token = await getArmToken();
-  const body = buildComponentJobBody({ jobName, settingsUri });
+  const body = buildCommandComponentJobBody({ jobName, settingsUri });
 
   const resp = await fetch(url, {
     method: "PUT",
@@ -310,7 +304,7 @@ app.get("/health", (req, res) => {
   res.json({
     ok: true,
     time: new Date().toISOString(),
-    server_mode: "REST_COMPONENT_ONLY",
+    server_mode: "REST_COMMAND_COMPONENT_ONLY",
   });
 });
 
@@ -395,7 +389,7 @@ app.post("/api/settings", async (req, res) => {
   }
 });
 
-// Start Azure ML component job
+// Start Azure ML command-component job
 app.post("/api/run", async (req, res) => {
   const requestTime = new Date().toISOString();
   console.log("========== POST /api/run ==========");
@@ -416,9 +410,9 @@ app.post("/api/run", async (req, res) => {
     await saveRunSettingsToBlob(settings);
     console.log("settings saved to blob:", RUN_SETTINGS_JSON, RUN_SETTINGS_TXT);
 
-    // 2) Submit AML component job
+    // 2) Submit AML command-component job
     const jobName = makeJobName("webrun");
-    console.log("submitting AML component job:", jobName);
+    console.log("submitting AML command-component job:", jobName);
 
     const job = await submitAmlComponentJob({
       jobName,
@@ -426,7 +420,7 @@ app.post("/api/run", async (req, res) => {
     });
 
     const studioUrl = extractStudioUrl(job);
-    console.log("AML component job submitted:", job?.name || jobName);
+    console.log("AML command-component job submitted:", job?.name || jobName);
     console.log("studio url:", studioUrl || "(none)");
 
     res.set("Cache-Control", "no-store");
@@ -440,6 +434,7 @@ app.post("/api/run", async (req, res) => {
         compute: AZ_ML_COMPUTE,
         component: `${AZ_ML_COMPONENT_NAME}:${AZ_ML_COMPONENT_VERSION}`,
         api_version: AZ_ML_API_VERSION,
+        job_type: "Command",
       },
     });
   } catch (e) {
@@ -453,6 +448,7 @@ app.post("/api/run", async (req, res) => {
         compute: AZ_ML_COMPUTE,
         component: `${AZ_ML_COMPONENT_NAME}:${AZ_ML_COMPONENT_VERSION}`,
         api_version: AZ_ML_API_VERSION,
+        job_type: "Command",
       },
     });
   }
@@ -484,7 +480,7 @@ app.get("/api/job/:name", async (req, res) => {
 
 // ====== Start server ======
 app.listen(port, () => {
-  console.log("SERVER_MODE=REST_COMPONENT_ONLY");
+  console.log("SERVER_MODE=REST_COMMAND_COMPONENT_ONLY");
   console.log(`Backend listening on port ${port}`);
   console.log(`ALLOWED_ORIGIN=${ALLOWED_ORIGIN}`);
 
