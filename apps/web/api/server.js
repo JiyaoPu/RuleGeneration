@@ -195,21 +195,23 @@ function buildComponentJobBody({ jobName, settingsUri }) {
       displayName: jobName,
       experimentName: "web_run",
 
-      componentId,
-      computeId,
-
-      inputs: {
-        settings_json: {
-          jobInputType: "uri_file",
-          uri: settingsUri,
-        },
-      },
-
-      outputs: {
-        outputs_dir: {
-          jobOutputType: "uri_folder",
-          mode: "Upload",
-          uri: outputsUri,
+      jobs: {
+        train_step: {
+          componentId,
+          computeId,
+          inputs: {
+            settings_json: {
+              jobInputType: "uri_file",
+              uri: settingsUri,
+            },
+          },
+          outputs: {
+            outputs_dir: {
+              jobOutputType: "uri_folder",
+              mode: "Upload",
+              uri: outputsUri,
+            },
+          },
         },
       },
 
