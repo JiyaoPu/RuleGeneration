@@ -4,7 +4,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import io
 
-# Q-table 数据
+# Q-table
 data = """observation,cheat,cooperate
 oooooooooo,2.276668,54.177297
 ooooooooyy,53.229622,0.163712
@@ -108,26 +108,21 @@ ooooooynnn,0.030000,2.160204
 ooooynnnyy,0.000000,2.273166
 """
 
-# 读取数据
 df = pd.read_csv(io.StringIO(data))
 
-# 归一化Q值以便可视化
-# 合并cheat和cooperate列
 combined_min = min(df["cheat"].min(), df["cooperate"].min())
 combined_max = max(df["cheat"].max(), df["cooperate"].max())
 
-# 正则化
 df["cheat_norm"] = (df["cheat"] - combined_min) / (combined_max - combined_min)
 df["cooperate_norm"] = (df["cooperate"] - combined_min) / (combined_max - combined_min)
 
 
-# 可视化
 plt.figure(figsize=(12, 4))
 df_sorted = df.sort_values(by="observation")
 
 ax = sns.heatmap(df_sorted[["cheat_norm", "cooperate_norm"]].T, cmap="coolwarm", annot=False, xticklabels=df_sorted["observation"], yticklabels=["cheat", "cooperate"])
 
-plt.xticks(rotation=90, fontsize=8)  # 调整字体大小
-plt.subplots_adjust(bottom=0.3)  # 调整底部间距
+plt.xticks(rotation=90, fontsize=8)
+plt.subplots_adjust(bottom=0.3)
 plt.title("Q-table Heatmap (Normalized)")
 plt.show()
