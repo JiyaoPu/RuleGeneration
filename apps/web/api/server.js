@@ -213,30 +213,22 @@ function buildCommandComponentJobBody({ jobName, settingsUri }) {
 
   return {
     properties: {
-      jobType: "Pipeline",
+      jobType: "Command",
       displayName: jobName,
       experimentName: "web_run",
-
-      jobs: {
-        train_step: {
-          jobType: "Command",
-          componentId,
-          computeId,
-
-          inputs: {
-            settings_json: {
-              jobInputType: "uri_file",
-              uri: settingsUri,
-            },
-          },
-
-          outputs: {
-            outputs_dir: {
-              jobOutputType: "uri_folder",
-              mode: "Upload",
-              uri: outputsUri,
-            },
-          },
+      componentId,
+      computeId,
+      inputs: {
+        settings_json: {
+          jobInputType: "uri_file",
+          uri: settingsUri,
+        },
+      },
+      outputs: {
+        outputs_dir: {
+          jobOutputType: "uri_folder",
+          mode: "Upload",
+          uri: outputsUri,
         },
       },
     },

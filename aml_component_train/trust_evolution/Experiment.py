@@ -52,8 +52,8 @@ def str2bool(v):
 parser = argparse.ArgumentParser()
 
 # Rule
-parser.add_argument("--random_count", type=int, default=4, help="0, number of Random Action agents")
-parser.add_argument("--cheater_count", type=int, default=4, help="1, number of Always Cheat agents")
+parser.add_argument("--random_count", type=int, default=3, help="0, number of Random Action agents")
+parser.add_argument("--cheater_count", type=int, default=3, help="1, number of Always Cheat agents")
 parser.add_argument("--cooperator_count", type=int, default=4, help="2, number of Always Cooperate agents")
 parser.add_argument("--copycat_count", type=int, default=4, help="3, number of Copycat agents")
 parser.add_argument("--grudger_count", type=int, default=4, help="4, number of Grudger agents")
@@ -87,7 +87,7 @@ parser.add_argument("--batch_size", type=int, default=1, help="size of the batch
 parser.add_argument("--lr", type=float, default=0.01, help="adam: learning rate")
 parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
-parser.add_argument("--RuleDimension", type=int, default=3, help="trade rule dimension")
+parser.add_argument("--RuleDimension", type=int, default=20, help="trade rule dimension")
 parser.add_argument("--DE_train_episode", type=int, default=5, help="number of episode during Q table training")
 parser.add_argument("--DE_test_episode", type=int, default=1, help="number of episode during test")
 parser.add_argument("--layersNum", type=int, default=1, help="layer number of the generator output")
@@ -1302,23 +1302,10 @@ for DE_epoch_id in range(opt.DE_train_episode):
             mistake_possibility = opt.mistake_possibility
             extrinsic_reward = opt.extrinsic_reward
         else:
-            initial_agent_counts = {
-                "Random": opt.random_count,
-                "Cheater": opt.cheater_count,
-                "Cooperator": opt.cooperator_count,
-                "Copycat": opt.copycat_count,
-                "Grudger": opt.grudger_count,
-                "Detective": opt.detective_count,
-                opt.ai_type: opt.ai_count,
-                "Human": opt.human_count,
-            }
-            initial_agent_counts = np.array(list(initial_agent_counts.values()))
-            trade_rules = opt.trade_rules
-            round_number = opt.round_number
-            reproduction_number = opt.reproduction_number
-            mistake_possibility = opt.mistake_possibility
-            extrinsic_reward = opt.extrinsic_reward
-            extrinsic_reward = extrinsic_reward_translation(rules)
+            initial_agent_counts, trade_rules, round_number, reproduction_number, mistake_possibility = rule_translation(
+                rules[:17])
+
+            extrinsic_reward = extrinsic_reward_translation(rules[17:])
 
         difficulty = difficulty_translation(extrinsic_reward)
 
