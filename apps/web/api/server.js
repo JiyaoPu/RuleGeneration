@@ -35,15 +35,21 @@ app.use(express.json({ limit: "2mb" }));
 const STORAGE_ACCOUNT = process.env.STORAGE_ACCOUNT || "rgnspace3954763138";
 const METRICS_CONTAINER = process.env.METRICS_CONTAINER || "rgnresults";
 
-const LATEST_BLOB = process.env.LATEST_BLOB || "latest/metrics.json";
-const RUN_BLOB = process.env.RUN_BLOB || "run/metrics.json";
+// latest artifacts
+const LATEST_METRICS_BLOB =
+  process.env.LATEST_METRICS_BLOB || "latest/data/metrics.json";
+const LATEST_QTABLE_BLOB =
+  process.env.LATEST_QTABLE_BLOB || "latest/data/q_table_heatmap.png";
 
-const RUN_SETTINGS_JSON = process.env.RUN_SETTINGS_JSON || "run/settings.json";
-const RUN_SETTINGS_TXT = process.env.RUN_SETTINGS_TXT || "run/settings.txt";
+// settings staging path for AML input
+const RUN_SETTINGS_JSON =
+  process.env.RUN_SETTINGS_JSON || "submit/settings.json";
+const RUN_SETTINGS_TXT =
+  process.env.RUN_SETTINGS_TXT || "submit/settings.txt";
 
 const AML_SETTINGS_URI =
   process.env.AML_SETTINGS_URI ||
-  "azureml://datastores/rgnresults_ds/paths/run/settings.json";
+  "azureml://datastores/rgnresults_ds/paths/submit/settings.json";
 
 // ====== Azure ML config ======
 const AZ_SUBSCRIPTION_ID = process.env.AZ_SUBSCRIPTION_ID;
@@ -52,7 +58,7 @@ const AZ_ML_WORKSPACE = process.env.AZ_ML_WORKSPACE;
 
 const AZ_ML_COMPUTE = process.env.AZ_ML_COMPUTE || "RGN-Compute-Cluster";
 
-// 已注册 command component
+// Registered command component
 const AZ_ML_COMPONENT_NAME =
   process.env.AZ_ML_COMPONENT_NAME || "rgn_train_component";
 const AZ_ML_COMPONENT_VERSION =
@@ -91,11 +97,26 @@ async function downloadBlobText(blobPath) {
   return await streamToString(resp.readableStreamBody);
 }
 
+async function downloadBlobBuffer(blobPath) {
+  const blobClient = getBlobClient(blobPath);
+  const resp = await blobClient.download();
+  return await streamToBuffer(resp.readableStreamBody);
+}
+
 function streamToString(readable) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     readable.on("data", (d) => chunks.push(d));
     readable.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
+    readable.on("error", reject);
+  });
+}
+
+function streamToBuffer(readable) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    readable.on("data", (d) => chunks.push(d));
+    readable.on("end", () => resolve(Buffer.concat(chunks)));
     readable.on("error", reject);
   });
 }
@@ -112,6 +133,7 @@ async function uploadBlobText(blobPath, text, contentType) {
   const containerClient = await ensureContainer();
   const blockBlob = containerClient.getBlockBlobClient(blobPath);
   await blockBlob.upload(text, Buffer.byteLength(text), {
+    overwrite: true,
     blobHTTPHeaders: { blobContentType: contentType },
   });
 }
@@ -194,17 +216,14 @@ function buildCommandComponentJobBody({ jobName, settingsUri }) {
       jobType: "Command",
       displayName: jobName,
       experimentName: "web_run",
-
       componentId,
       computeId,
-
       inputs: {
         settings_json: {
           jobInputType: "uri_file",
           uri: settingsUri,
         },
       },
-
       outputs: {
         outputs_dir: {
           jobOutputType: "uri_folder",
@@ -308,15 +327,15 @@ app.get("/health", (req, res) => {
   });
 });
 
-// latest from Blob
+// Latest metrics from Blob
 app.get("/api/latest", async (req, res) => {
   try {
-    const blobClient = getBlobClient(LATEST_BLOB);
+    const blobClient = getBlobClient(LATEST_METRICS_BLOB);
     const props = await blobClient.getProperties();
-    const text = await downloadBlobText(LATEST_BLOB);
+    const text = await downloadBlobText(LATEST_METRICS_BLOB);
 
     res.set("Cache-Control", "no-store");
-    res.set("X-Blob-Path", LATEST_BLOB);
+    res.set("X-Blob-Path", LATEST_METRICS_BLOB);
     res.set("X-Blob-ETag", String(props.etag || ""));
     res.set("X-Blob-Last-Modified", props.lastModified?.toISOString?.() || "");
 
@@ -327,36 +346,35 @@ app.get("/api/latest", async (req, res) => {
       error: e.message,
       storage: STORAGE_ACCOUNT,
       container: METRICS_CONTAINER,
-      blob: LATEST_BLOB,
+      blob: LATEST_METRICS_BLOB,
     });
   }
 });
 
-// run from Blob (optional)
-app.get("/api/run", async (req, res) => {
+// Latest q-table heatmap image from Blob
+app.get("/api/q_table_heatmap.png", async (req, res) => {
   try {
-    const blobClient = getBlobClient(RUN_BLOB);
+    const blobClient = getBlobClient(LATEST_QTABLE_BLOB);
     const props = await blobClient.getProperties();
-    const text = await downloadBlobText(RUN_BLOB);
+    const buf = await downloadBlobBuffer(LATEST_QTABLE_BLOB);
 
     res.set("Cache-Control", "no-store");
-    res.set("X-Blob-Path", RUN_BLOB);
+    res.set("X-Blob-Path", LATEST_QTABLE_BLOB);
     res.set("X-Blob-ETag", String(props.etag || ""));
     res.set("X-Blob-Last-Modified", props.lastModified?.toISOString?.() || "");
-
-    res.type("application/json").send(text);
+    res.type("image/png").send(buf);
   } catch (e) {
     res.status(500).json({
       ok: false,
       error: e.message,
       storage: STORAGE_ACCOUNT,
       container: METRICS_CONTAINER,
-      blob: RUN_BLOB,
+      blob: LATEST_QTABLE_BLOB,
     });
   }
 });
 
-// save settings into Blob
+// Save settings into Blob
 app.post("/api/settings", async (req, res) => {
   try {
     const settings = req.body;
@@ -454,7 +472,7 @@ app.post("/api/run", async (req, res) => {
   }
 });
 
-// Debug: get job detail/status by name
+// Debug: get AML job detail/status by name
 app.get("/api/job/:name", async (req, res) => {
   try {
     const jobName = req.params.name;
@@ -486,8 +504,8 @@ app.listen(port, () => {
 
   console.log(`STORAGE_ACCOUNT=${STORAGE_ACCOUNT}`);
   console.log(`METRICS_CONTAINER=${METRICS_CONTAINER}`);
-  console.log(`LATEST_BLOB=${LATEST_BLOB}`);
-  console.log(`RUN_BLOB=${RUN_BLOB}`);
+  console.log(`LATEST_METRICS_BLOB=${LATEST_METRICS_BLOB}`);
+  console.log(`LATEST_QTABLE_BLOB=${LATEST_QTABLE_BLOB}`);
   console.log(`RUN_SETTINGS_JSON=${RUN_SETTINGS_JSON}`);
   console.log(`RUN_SETTINGS_TXT=${RUN_SETTINGS_TXT}`);
   console.log(`AML_SETTINGS_URI=${AML_SETTINGS_URI}`);

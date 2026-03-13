@@ -2,13 +2,14 @@ import argparse
 import json
 import os
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 
 def pick_writable_output_dir(cli_path: str) -> Path:
     """
     In some AML job modes, the provided output mount path might not exist or be writable.
-    We fall back to standard AML env vars or local ./outputs.
+    Fall back to standard AML env vars or local ./outputs.
     """
     candidates = []
     if cli_path:
@@ -78,7 +79,7 @@ def ensure_azure_packages():
         print("[main] azure packages not found, installing azure-identity & azure-storage-blob ...", flush=True)
         subprocess.run(
             ["python", "-m", "pip", "install", "-q", "azure-identity", "azure-storage-blob"],
-            check=True
+            check=True,
         )
 
 
@@ -108,6 +109,23 @@ def upload_outputs_to_blob(local_dir: Path, account_url: str, container: str, pr
     print(f"[upload] uploaded_files={uploaded} -> {account_url}/{container}/{prefix}/", flush=True)
 
 
+def make_job_id() -> str:
+    """
+    Create a stable job id for blob archival.
+    Prefer AML identifiers when present; otherwise fall back to webrun_YYYYMMDDHHMMSS.
+    """
+    aml_run_id = os.getenv("AZUREML_RUN_ID")
+    aml_job_id = os.getenv("AZUREML_JOB_ID")
+
+    # If AML provides a clean-ish id, use it; otherwise generate a user-friendly one.
+    candidate = aml_run_id or aml_job_id
+    if candidate:
+        safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in candidate)
+        return safe
+
+    return "webrun_" + datetime.utcnow().strftime("%Y%m%d%H%M%S")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--settings_json", type=str, required=True)
@@ -131,7 +149,7 @@ def main():
     with open(settings_path, "r", encoding="utf-8") as f:
         settings = json.load(f)
 
-    # ---- audit: save settings into outputs ----
+    # Audit: save settings into outputs
     settings_txt = "\n".join([f"{k}: {v}" for k, v in settings.items()]) + "\n"
     (out_dir / "settings.txt").write_text(settings_txt, encoding="utf-8")
     (out_dir / "settings.json").write_text(
@@ -139,7 +157,7 @@ def main():
         encoding="utf-8",
     )
 
-    # ---- Map frontend keys -> Experiment.py args ----
+    # Map frontend keys -> Experiment.py args
     exp_args = ["python", "trust_evolution/Experiment.py"]
 
     # Rule: population counts (input_0..7)
@@ -218,26 +236,39 @@ def main():
     exp_args += ["--target_update", str(as_int(settings.get("input_target_update", 10), 10))]
     exp_args += ["--state_size", str(as_int(settings.get("input_state_size", 20), 20))]
 
-    # Pass output_dir into Experiment.py (you already added this arg in Experiment.py)
+    # Pass output_dir into Experiment.py
     exp_args += ["--output_dir", str(out_dir)]
 
     print("[main] RUN:", " ".join(exp_args), flush=True)
     subprocess.run(exp_args, check=True)
     print("[main] Experiment finished.", flush=True)
 
-    # ---- Sync outputs to your Blob container/path (scheme B) ----
-    # Use run id to avoid overwriting previous runs
-    run_id = os.getenv("AZUREML_RUN_ID") or os.getenv("AZUREML_JOB_ID") or "local"
-    prefix = f"run/{run_id}"
+    # Upload strategy:
+    # 1) Archive to jobs/<job_id>/
+    # 2) Overwrite latest/
+    job_id = make_job_id()
+    jobs_prefix = f"jobs/{job_id}"
+    latest_prefix = "latest"
+
+    account_url = "https://rgnspace3954763138.blob.core.windows.net"
+    container = "rgnresults"
 
     upload_outputs_to_blob(
         local_dir=out_dir,
-        account_url="https://rgnspace3954763138.blob.core.windows.net",
-        container="rgnresults",
-        prefix=prefix,
+        account_url=account_url,
+        container=container,
+        prefix=jobs_prefix,
     )
 
-    print(f"[main] DONE. You can access: rgnresults/{prefix}/...", flush=True)
+    upload_outputs_to_blob(
+        local_dir=out_dir,
+        account_url=account_url,
+        container=container,
+        prefix=latest_prefix,
+    )
+
+    print(f"[main] DONE. Archived at: rgnresults/{jobs_prefix}/...", flush=True)
+    print(f"[main] DONE. Latest at:    rgnresults/{latest_prefix}/...", flush=True)
 
 
 if __name__ == "__main__":
