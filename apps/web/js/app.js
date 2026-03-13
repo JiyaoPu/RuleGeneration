@@ -468,19 +468,24 @@ document.addEventListener("DOMContentLoaded", function () {
       options: aiTypeOptions,
     });
 
-    document.getElementById("hiddenHumanPlayer").value = "False";
-    document.getElementById("hiddenAIType").value = "Q";
+    var hiddenHumanPlayer = container.getElement().find("#hiddenHumanPlayer")[0];
+    var hiddenAIType = container.getElement().find("#hiddenAIType")[0];
+    
+    if (hiddenHumanPlayer) hiddenHumanPlayer.value = "False";
+    if (hiddenAIType) hiddenAIType.value = "Q";
 
     humanPlayerSelect.on("change", function () {
       const idx = Number(humanPlayerSelect.selectedIndex ?? humanPlayerSelect.value ?? 0);
-      document.getElementById("hiddenHumanPlayer").value =
-        humanPlayerOptions[idx] ?? "False";
+      if (hiddenHumanPlayer) {
+        hiddenHumanPlayer.value = humanPlayerOptions[idx] ?? "False";
+      }
     });
-
+    
     aiTypeSelect.on("change", function () {
       const idx = Number(aiTypeSelect.selectedIndex ?? aiTypeSelect.value ?? 0);
-      document.getElementById("hiddenAIType").value =
-        aiTypeOptions[idx] ?? "Q";
+      if (hiddenAIType) {
+        hiddenAIType.value = aiTypeOptions[idx] ?? "Q";
+      }
     });
 
     var buttonHolder = container.getElement().find("#buttonHolder")[0];
