@@ -62,7 +62,7 @@ const AZ_ML_COMPUTE = process.env.AZ_ML_COMPUTE || "RGN-Compute-Cluster";
 const AZ_ML_COMPONENT_NAME =
   process.env.AZ_ML_COMPONENT_NAME || "rgn_train_component";
 const AZ_ML_COMPONENT_VERSION =
-  process.env.AZ_ML_COMPONENT_VERSION || "2";
+  process.env.AZ_ML_COMPONENT_VERSION || "5";
 
 const AZ_ML_DATASTORE = process.env.AZ_ML_DATASTORE || "rgnresults_ds";
 
